@@ -106,10 +106,14 @@ class VoiceRecognitionManager {
     console.log('[Voice Transcript]', text);
     let identifiedAction = null;
 
-    // Normalização sem acentos para garantir precisão
-    const clean = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    // Normalização sem acentos e remoção de pontuações (ex: "desligar.")
+    const clean = text.normalize("NFD")
+                      .replace(/[\u0300-\u036f]/g, "")
+                      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "")
+                      .toLowerCase()
+                      .trim();
 
-    // 1. REGRA CRÍTICA: Checar DESLIGAR PRIMEIRO, pois a palavra "desligar" contém as letras "ligar" e "liga"
+    // 1. REGRA CRÍTICA: Checar DESLIGAR PRIMEIRO (mesmo com ponto ou variações)
     const isDesligar = /\b(desligar|desliga|desligue|desativa|desativar|desative|parar|pare|para|interromper|corta)\b/.test(clean) ||
                        clean.includes('deslig') ||
                        clean.includes('desativ') ||
