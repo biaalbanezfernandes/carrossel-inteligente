@@ -164,8 +164,13 @@ class CarouselCommManager {
       }
     }
 
-    this.log('Falha: Nenhum canal de comunicação ativo (nem Wi-Fi, nem BLE). Conecte-se ou ative o Modo Demonstração.', 'warn');
-    return false;
+    // Se nenhum hardware estiver pareado no momento (ex: teste na web/Vercel),
+    // aciona a simulação interativa automaticamente para responder ao usuário
+    this.isDemoMode = true;
+    this.activeChannel = 'demo';
+    this.notifyStatus();
+    this.simulateDemoCommand(payload);
+    return true;
   }
 
   // ========================================================================

@@ -107,27 +107,25 @@ class VoiceRecognitionManager {
     let identifiedAction = null;
 
     // Normalização sem acentos para garantir precisão
-    const clean = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+    const clean = text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 
-    // Comandos de LIGAR
-    if (
-      clean.includes('ligar') ||
-      clean.includes('iniciar') ||
-      clean.includes('ativa') ||
-      clean.includes('liga') ||
-      clean.includes('rodar')
-    ) {
-      identifiedAction = { action: 'POWER', value: true, raw: text };
-    }
-    // Comandos de DESLIGAR
-    else if (
-      clean.includes('desligar') ||
-      clean.includes('parar') ||
-      clean.includes('desativa') ||
-      clean.includes('desliga') ||
-      clean.includes('para')
-    ) {
+    // 1. REGRA CRÍTICA: Checar DESLIGAR PRIMEIRO, pois a palavra "desligar" contém as letras "ligar" e "liga"
+    const isDesligar = /\b(desligar|desliga|desligue|desativa|desativar|desative|parar|pare|para|interromper|corta)\b/.test(clean) ||
+                       clean.includes('deslig') ||
+                       clean.includes('desativ') ||
+                       clean.includes('parar') ||
+                       clean.includes('pare');
+
+    // 2. Comandos de LIGAR
+    const isLigar = /\b(ligar|liga|ligue|iniciar|inicia|inicie|ativar|ativa|ative|rodar|gira|girar)\b/.test(clean) ||
+                    clean.includes('inici') ||
+                    clean.includes('rodar') ||
+                    clean.includes('ativ');
+
+    if (isDesligar) {
       identifiedAction = { action: 'POWER', value: false, raw: text };
+    } else if (isLigar || clean.includes('liga')) {
+      identifiedAction = { action: 'POWER', value: true, raw: text };
     }
 
     if (this.onResultCallback && identifiedAction) {
