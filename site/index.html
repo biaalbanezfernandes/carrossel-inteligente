@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Carrossel MAKER • Controle e Configurador</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app-wrapper">
+    <!-- Header com Marca e Status de Conexão -->
+    <header class="header-card">
+      <div class="header-brand">
+        <div class="brand-icon">🎠</div>
+        <div>
+          <h1>Carrossel MAKER</h1>
+          <p class="subtitle">Controle & Integração Inteligente ESP32</p>
+        </div>
+      </div>
+
+      <!-- Barra de Status de Conectividade -->
+      <div class="connectivity-bar">
+        <div class="conn-pill" id="pill-esp" title="Status geral de comunicação">
+          <span class="status-dot dot-offline" id="dot-esp"></span>
+          <span class="conn-label">ESP32:</span>
+          <span class="conn-state" id="txt-esp">Desconectado</span>
+        </div>
+
+        <div class="conn-pill" id="pill-wifi" title="Conexão Wi-Fi (WebSocket/HTTP)">
+          <span class="status-dot dot-offline" id="dot-wifi"></span>
+          <span class="conn-label">Wi-Fi:</span>
+          <span class="conn-state" id="txt-wifi">Off</span>
+        </div>
+
+        <div class="conn-pill" id="pill-ble" title="Conexão Bluetooth Low Energy">
+          <span class="status-dot dot-offline" id="dot-ble"></span>
+          <span class="conn-label">BLE:</span>
+          <span class="conn-state" id="txt-ble">Off</span>
+        </div>
+      </div>
+
+      <!-- Aviso Explicito de Modo Demonstracao -->
+      <div class="demo-banner hidden" id="demo-banner">
+        <span class="demo-icon">⚠️</span>
+        <div class="demo-text">
+          <strong>MODO DEMONSTRAÇÃO ATIVO</strong>
+          <small>Hardware físico não conectado. As respostas de estado são simuladas no navegador.</small>
+        </div>
+      </div>
+    </header>
+
+    <!-- Barra de Navegação por Abas -->
+    <nav class="tabs-nav" role="tablist">
+      <button class="tab-btn active" id="tab-btn-control" data-tab="tab-control" role="tab">
+        <span class="tab-icon">🎮</span> Controle
+      </button>
+      <button class="tab-btn" id="tab-btn-schematics" data-tab="tab-schematics" role="tab">
+        <span class="tab-icon">📐</span> Esquema
+      </button>
+      <button class="tab-btn" id="tab-btn-config" data-tab="tab-config" role="tab">
+        <span class="tab-icon">⚙️</span> Configurações
+      </button>
+    </nav>
+
+    <!-- ==================================================================== -->
+    <!-- ABA 1: CONTROLE DO CARROSSEL                                         -->
+    <!-- ==================================================================== -->
+    <main class="tab-pane active" id="tab-control" role="tabpanel">
+      <!-- Painel de Conexão Rápida -->
+      <section class="conn-actions-card">
+        <div class="input-group">
+          <label for="input-esp-ip">IP do ESP32 na rede Wi-Fi:</label>
+          <input type="text" id="input-esp-ip" placeholder="Ex: 192.168.4.1 ou 192.168.1.150" value="192.168.4.1" />
+        </div>
+        <div class="conn-buttons">
+          <button id="btn-connect-wifi" class="btn-action btn-wifi">
+            <span class="btn-icon">📶</span> Conectar Wi-Fi
+          </button>
+          <button id="btn-connect-ble" class="btn-action btn-ble">
+            <span class="btn-icon">⚡</span> Conectar BLE
+          </button>
+          <button id="btn-toggle-demo" class="btn-action btn-demo">
+            <span class="btn-icon">🧪</span> Modo Demo
+          </button>
+        </div>
+        <div id="conn-feedback" class="conn-feedback">Pronto para conectar ao hardware.</div>
+      </section>
+
+      <!-- Botão Mestre Geral (LIGAR / DESLIGAR) -->
+      <section class="master-control-section">
+        <div class="master-btn-container">
+          <button id="btn-master" class="master-button master-off" aria-label="Ligar ou Desligar Carrossel Geral">
+            <div class="master-inner-ring">
+              <div class="master-power-icon">⏻</div>
+              <div class="master-title" id="master-title">LIGAR TUDO</div>
+              <div class="master-sub" id="master-sub">Toque para acionar</div>
+            </div>
+          </button>
+        </div>
+        <p class="master-hint">Sequência segura: inicia motor com rampa, áudio e pisca-pisca. O desligamento freia o motor antes de cortar energia.</p>
+      </section>
+
+      <!-- Seção de Comando de Voz -->
+      <section class="voice-section">
+        <div class="voice-card">
+          <button id="btn-voice" class="btn-voice" title="Pressione e fale 'Ligar' ou 'Desligar'">
+            <span class="voice-mic-icon">🎙️</span>
+            <span class="voice-btn-text" id="voice-btn-text">Comando de Voz</span>
+          </button>
+          <div class="voice-info">
+            <div class="voice-status" id="voice-status">Microfone em espera (Web Speech pt-BR)</div>
+            <div class="voice-transcript" id="voice-transcript">Fale "Ligar" ou "Desligar"</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Controles Individuais e Telemetria Real -->
+      <section class="components-grid">
+        <h2 class="section-title">Controles Individuais e Estado Real</h2>
+
+        <!-- Card do Motor -->
+        <div class="component-card" id="card-motor">
+          <div class="comp-header">
+            <div class="comp-icon-box motor-color">⚙️</div>
+            <div class="comp-info">
+              <h3>Motor Principal</h3>
+              <span class="comp-state-badge badge-off" id="badge-motor">PARADO</span>
+            </div>
+          </div>
+          <div class="comp-body">
+            <p class="comp-desc">Movimento de rotação do carrossel com rampa segura de aceleração.</p>
+            <div class="comp-real-state">
+              <span class="telemetry-label">Status real ESP32:</span>
+              <span class="telemetry-value" id="real-motor">DESLIGADO (0%)</span>
+            </div>
+          </div>
+          <div class="comp-footer">
+            <button id="btn-toggle-motor" class="btn-toggle btn-toggle-off">Ligar Motor</button>
+          </div>
+        </div>
+
+        <!-- Card do Áudio / Música -->
+        <div class="component-card" id="card-audio">
+          <div class="comp-header">
+            <div class="comp-icon-box audio-color">🎵</div>
+            <div class="comp-info">
+              <h3>Módulo de Música</h3>
+              <span class="comp-state-badge badge-off" id="badge-audio">MUDO</span>
+            </div>
+          </div>
+          <div class="comp-body">
+            <p class="comp-desc">Trilha sonora infantil via cartão SD (DFPlayer Mini).</p>
+            <div class="comp-real-state">
+              <span class="telemetry-label">Status real ESP32:</span>
+              <span class="telemetry-value" id="real-audio">DESLIGADO</span>
+            </div>
+          </div>
+          <div class="comp-footer">
+            <button id="btn-toggle-audio" class="btn-toggle btn-toggle-off">Ligar Música</button>
+          </div>
+        </div>
+
+        <!-- Card do Pisca-Pisca de Natal -->
+        <div class="component-card" id="card-light">
+          <div class="comp-header">
+            <div class="comp-icon-box light-color">✨</div>
+            <div class="comp-info">
+              <h3>Pisca-Pisca Colorido</h3>
+              <span class="comp-state-badge badge-off" id="badge-light">APAGADO</span>
+            </div>
+          </div>
+          <div class="comp-body">
+            <p class="comp-desc">Iluminação de Natal preservando os efeitos da caixinha original.</p>
+            <div class="comp-real-state">
+              <span class="telemetry-label">Status real ESP32:</span>
+              <span class="telemetry-value" id="real-light">DESLIGADO</span>
+            </div>
+          </div>
+          <div class="comp-footer">
+            <button id="btn-toggle-light" class="btn-toggle btn-toggle-off">Ligar Iluminação</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Console de Eventos, Diagnóstico e Segurança -->
+      <section class="diagnostics-card">
+        <div class="diag-header">
+          <h3>Diagnóstico & Segurança</h3>
+          <button id="btn-clear-log" class="btn-clear">Limpar</button>
+        </div>
+        <div id="event-log" class="event-log" role="log" aria-live="polite"></div>
+      </section>
+    </main>
+
+    <!-- ==================================================================== -->
+    <!-- ABA 2: ESQUEMA COMPLETO DE LIGAÇÃO & MONTAGEM                        -->
+    <!-- ==================================================================== -->
+    <section class="tab-pane" id="tab-schematics" role="tabpanel">
+      <div class="schematic-card">
+        <h2>Esquema Elétrico e Montagem Completa</h2>
+        <p class="schematic-intro">
+          Veja a ligação exata de cada um dos 4 componentes principais com o ESP32 convencional.
+        </p>
+
+        <!-- Seletor de Alimentação Interativo -->
+        <div class="power-selector-box">
+          <label><strong>Como você vai alimentar o Carrossel?</strong></label>
+          <div class="power-options">
+            <button class="btn-power-opt active" data-power="battery">
+              🔋 Pilhas / Baterias (Portátil)
+            </button>
+            <button class="btn-power-opt" data-power="powersupply">
+              🔌 Fonte de Tomada (Recomendado)
+            </button>
+          </div>
+          <div id="power-advice" class="power-advice">
+            <!-- Texto dinâmico inserido via JS -->
+          </div>
+        </div>
+
+        <!-- Diagrama Visual dos 4 Componentes -->
+        <div class="wiring-diagram">
+          <!-- Bloco ESP32 -->
+          <div class="diagram-block block-esp32">
+            <div class="block-title">🧠 ESP32 (Convencional - 38 pinos)</div>
+            <div class="pin-wire"><span class="pin-badge">VIN (5V)</span> <span class="wire-line wire-red"></span> Alimentação +5V</div>
+            <div class="pin-wire"><span class="pin-badge">GND</span> <span class="wire-line wire-black"></span> Terra Comum (Interligar todos os GNDs)</div>
+            <div class="pin-wire"><span class="pin-badge">GPIO 25</span> <span class="wire-line wire-orange"></span> Driver Motor IN1 (Sentido)</div>
+            <div class="pin-wire"><span class="pin-badge">GPIO 26</span> <span class="wire-line wire-orange"></span> Driver Motor IN2 (Sentido)</div>
+            <div class="pin-wire"><span class="pin-badge">GPIO 27</span> <span class="wire-line wire-yellow"></span> Driver Motor PWM / ENA (Velocidade)</div>
+            <div class="pin-wire"><span class="pin-badge">GPIO 17 (TX2)</span> <span class="wire-line wire-blue"></span> DFPlayer RX (via Resistor 1kΩ)</div>
+            <div class="pin-wire"><span class="pin-badge">GPIO 16 (RX2)</span> <span class="wire-line wire-cyan"></span> DFPlayer TX</div>
+            <div class="pin-wire"><span class="pin-badge">GPIO 33</span> <span class="wire-line wire-green"></span> Controle do Pisca-Pisca (Gate/IN)</div>
+            <div class="pin-wire"><span class="pin-badge">GPIO 14</span> <span class="wire-line wire-purple"></span> Botão Físico de Emergência (GND)</div>
+          </div>
+
+          <!-- Bloco Motor -->
+          <div class="diagram-block block-motor">
+            <div class="block-title">⚙️ Motor DC + Driver Ponte H (TB6612 ou L298N)</div>
+            <p class="block-note">⚠️ <strong>NUNCA ligue o motor direto no ESP32!</strong> Use o driver intermediário.</p>
+            <ul>
+              <li><strong>Alimentação Motor (VM / VCC2):</strong> Conecte ao polo positivo da sua bateria ou fonte.</li>
+              <li><strong>GND:</strong> Interligado ao GND do ESP32.</li>
+              <li><strong>IN1, IN2, PWM:</strong> Ligados aos GPIOs 25, 26 e 27.</li>
+              <li><strong>OUT1 e OUT2:</strong> Ligados aos dois fios do motor DC (com capacitor cerâmico 100nF soldado entre os bornes).</li>
+            </ul>
+          </div>
+
+          <!-- Bloco Áudio -->
+          <div class="diagram-block block-audio">
+            <div class="block-title">🎵 Módulo de Som (DFPlayer Mini) + Alto-Falante</div>
+            <ul>
+              <li><strong>VCC:</strong> Pino 5V da fonte/bateria regulada.</li>
+              <li><strong>GND:</strong> Terra comum.</li>
+              <li><strong>RX:</strong> Conectado ao GPIO 17 do ESP32 <em>com um resistor de 1kΩ em série</em> (protege contra ruídos).</li>
+              <li><strong>TX:</strong> Conectado ao GPIO 16 do ESP32.</li>
+              <li><strong>SPK1 e SPK2:</strong> Ligados diretamente aos 2 fios do alto-falante (3W / 4Ω ou 8Ω).</li>
+              <li><strong>Cartão MicroSD:</strong> Formatado em FAT32 com músicas na pasta <code>/mp3/0001.mp3</code>.</li>
+            </ul>
+          </div>
+
+          <!-- Bloco Pisca-Pisca -->
+          <div class="diagram-block block-light">
+            <div class="block-title">✨ Pisca-Pisca de Natal Colorido</div>
+            <p class="block-note">💡 A caixinha controladora original com os efeitos natalinos <strong>é mantida</strong>.</p>
+            <ul>
+              <li><strong>Se o pisca for USB ou Pilhas (5V/4.5V DC):</strong> O GPIO 33 chaveia um transistor MOSFET de nível lógico (ex: IRLZ44N) na linha negativa da caixinha.</li>
+              <li><strong>Se o pisca for de tomada (127/220V AC):</strong> O GPIO 33 aciona um Módulo Relé optoisolado de 5V. A alta tensão fica trancada em gabinete isolado.</li>
+              <li>Ao ligar pelo site, o circuito recebe energia e acende no modo memorizado.</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Dica de Engenharia -->
+        <div class="schematic-footer-tip">
+          <strong>Regra Essencial do GND Comum:</strong> Todos os fios pretos (GND) da fonte/bateria, do ESP32, do driver de motor, do DFPlayer e do módulo do pisca-pisca devem estar conectados juntos no mesmo ponto de terra para que os sinais funcionem corretamente.
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================================================================== -->
+    <!-- ABA 3: CONFIGURAÇÕES & GERADOR DE FIRMWARE SEM CÓDIGO (NO-CODE)      -->
+    <!-- ==================================================================== -->
+    <section class="tab-pane" id="tab-config" role="tabpanel">
+      <div class="config-card">
+        <h2>Configurador do Carrossel & Gerador ESP32</h2>
+        <p class="config-intro">
+          Personalize tudo aqui <strong>sem precisar programar</strong>. As alterações geram o código pronto para você colar na Arduino IDE ou gravar no ESP32!
+        </p>
+
+        <!-- Formulário de Pré-Configurações -->
+        <form id="form-generator" class="config-form" onsubmit="return false;">
+          <!-- Seção de Rede -->
+          <fieldset class="config-group">
+            <legend>📡 Conectividade do ESP32</legend>
+            <div class="form-row">
+              <div class="form-field">
+                <label for="cfg-wifi-ssid">Nome da Rede Wi-Fi (SSID):</label>
+                <input type="text" id="cfg-wifi-ssid" value="Carrossel_Maker_ESP32" />
+              </div>
+              <div class="form-field">
+                <label for="cfg-wifi-pass">Senha do Wi-Fi:</label>
+                <input type="text" id="cfg-wifi-pass" value="carrossel123" />
+              </div>
+            </div>
+            <div class="form-field">
+              <label for="cfg-ble-name">Nome do Bluetooth BLE:</label>
+              <input type="text" id="cfg-ble-name" value="Carrossel_Maker_BLE" />
+            </div>
+          </fieldset>
+
+          <!-- Seção do Motor -->
+          <fieldset class="config-group">
+            <legend>⚙️ Movimento do Motor</legend>
+            <div class="form-row">
+              <div class="form-field">
+                <label for="cfg-motor-speed">Velocidade Máxima de Rotação:</label>
+                <select id="cfg-motor-speed">
+                  <option value="180">Suave / Lenta (Ideal para crianças pequenas)</option>
+                  <option value="220" selected>Média / Padrão (Recomendada)</option>
+                  <option value="255">Máxima (100% de potência)</option>
+                </select>
+              </div>
+              <div class="form-field">
+                <label for="cfg-ramp-speed">Rampa de Aceleração (Soft-Start):</label>
+                <select id="cfg-ramp-speed">
+                  <option value="slow">Muito Suave (2.5 segundos até embalar)</option>
+                  <option value="normal" selected>Normal (1.5 segundos)</option>
+                  <option value="fast">Rápida (0.8 segundos)</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Seção de Áudio e Luz -->
+          <fieldset class="config-group">
+            <legend>🎵 Som e Iluminação</legend>
+            <div class="form-row">
+              <div class="form-field">
+                <label for="cfg-audio-vol">Volume Inicial da Música (0 a 30):</label>
+                <input type="number" id="cfg-audio-vol" min="5" max="30" value="22" />
+              </div>
+              <div class="form-field">
+                <label for="cfg-light-type">Alimentação do Pisca-Pisca:</label>
+                <select id="cfg-light-type">
+                  <option value="dc_mosfet" selected>Baixa Tensão DC (Pilhas / USB 5V - MOSFET)</option>
+                  <option value="ac_relay">Rede Elétrica 127/220V AC (Módulo Relé Isolado)</option>
+                </select>
+              </div>
+            </div>
+          </fieldset>
+
+          <!-- Seção de Segurança -->
+          <fieldset class="config-group">
+            <legend>🛡️ Segurança Infantil</legend>
+            <div class="form-field">
+              <label for="cfg-watchdog">Tempo de Desligamento Automático sem Celular:</label>
+              <select id="cfg-watchdog">
+                <option value="5000">5 segundos (Mais rígido)</option>
+                <option value="8000" selected>8 segundos (Recomendado)</option>
+                <option value="15000">15 segundos</option>
+              </select>
+            </div>
+          </fieldset>
+
+          <!-- Botões do Gerador -->
+          <div class="generator-actions">
+            <button type="button" id="btn-generate-code" class="btn-primary-generate">
+              ⚡ Gerar Código Pronto para Arduino IDE
+            </button>
+            <button type="button" id="btn-copy-code" class="btn-secondary-copy">
+              📋 Copiar Código
+            </button>
+          </div>
+        </form>
+
+        <!-- Caixa com o Código Gerado Pronto para Copiar e Colar -->
+        <div class="code-output-container">
+          <div class="code-output-header">
+            <span>Sketch Completo para Arduino IDE / ESP32 (Tudo em 1 arquivo)</span>
+            <span id="copy-status" class="copy-status"></span>
+          </div>
+          <textarea id="generated-code-box" class="code-box" readonly spellcheck="false"></textarea>
+          <p class="code-instructions">
+            <strong>Como usar sem erro:</strong> Abra a Arduino IDE, crie um arquivo novo, apague tudo o que estiver lá dentro, cole o código acima e clique no botão de <strong>Upload (Seta)</strong>. Pronto! O ESP32 já estará configurado conforme você escolheu nas opções acima.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Rodapé Geral -->
+    <footer class="app-footer">
+      <p>Carrossel Inteligente MAKER • Controle Integrado ESP32 (Wi-Fi & BLE)</p>
+      <small>Segurança Infantil: Todas as saídas iniciam desligadas por padrão.</small>
+    </footer>
+  </div>
+
+  <script src="voice.js"></script>
+  <script src="comm.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
