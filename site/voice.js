@@ -2,9 +2,9 @@
  * ==========================================================================
  * CARROSSEL INTELIGENTE MAKER - RECONHECIMENTO DE VOZ ULTRA-RÁPIDO (voice.js)
  * ==========================================================================
+ * - Comandos: POWER_ON (Ligar) e POWER_OFF (Desligar)
  * - Resposta Imediata (Zero Delay).
- * - Desliga e Liga sem hesitação.
- * - Tratamento universal de termos e sinônimos.
+ * - Prioridade absoluta para o comando de DESLIGAR.
  */
 
 class VoiceRecognitionManager {
@@ -32,8 +32,8 @@ class VoiceRecognitionManager {
     this.isSupported = true;
     this.recognition = new SpeechRecognition();
     this.recognition.lang = 'pt-BR';
-    this.recognition.continuous = false; // Mais confiável no Android e iOS
-    this.recognition.interimResults = true; // Permite pegar a palavra no mesmo milissegundo
+    this.recognition.continuous = false;
+    this.recognition.interimResults = true;
     this.recognition.maxAlternatives = 1;
 
     this.recognition.onstart = () => {
@@ -53,7 +53,7 @@ class VoiceRecognitionManager {
       }
       transcript = transcript.trim();
 
-      // Remove acentos e caracteres especiais
+      // Normaliza sem acentos e sem pontuações
       const clean = transcript.normalize("NFD")
                               .replace(/[\u0300-\u036f]/g, "")
                               .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "")
@@ -62,7 +62,7 @@ class VoiceRecognitionManager {
 
       if (!clean) return;
 
-      // 1. RECONHECIMENTO DE DESLIGAR (PRIORIDADE ABSOLUTA)
+      // 1. RECONHECIMENTO DE DESLIGAR (PRIORIDADE TOTAL)
       const isDesligar = clean.includes('deslig') ||
                          clean.includes('parar') ||
                          clean.includes('pare') ||
@@ -70,7 +70,8 @@ class VoiceRecognitionManager {
                          clean.includes('apag') ||
                          clean.includes('stop') ||
                          clean.includes('desat') ||
-                         clean.includes('corta');
+                         clean.includes('corta') ||
+                         clean === 'off';
 
       // 2. RECONHECIMENTO DE LIGAR (SÓ SE NÃO FOR DESLIGAR)
       const isLigar = !isDesligar && (
@@ -79,21 +80,53 @@ class VoiceRecognitionManager {
                          clean.includes('ativ') ||
                          clean.includes('rod') ||
                          clean.includes('gir') ||
-                         clean.includes('start')
+                         clean.includes('start') ||
+                         clean === 'on'
                       );
 
       if (isDesligar) {
         this.alreadyHandled = true;
-        this.stop();
-        if (this.onResultCallback) {
-          this.onResultCallback({ action: 'POWER', value: false, raw: transcript });
+
+        // Dispara comando explícito POWER_OFF
+        try {
+          if (this.onResultCallback) {
+            this.onResultCallback({
+              command: 'POWER_OFF',
+              action: 'POWER_OFF',
+              value: false,
+              raw: transcript
+            });
+          }
+          if (window.carouselApplyPower) {
+            window.carouselApplyPower(false);
+          }
+        } catch (err) {
+          console.error('[Voice] Erro ao desligar:', err);
         }
+
+        try { this.stop(); } catch (e) {}
+
       } else if (isLigar) {
         this.alreadyHandled = true;
-        this.stop();
-        if (this.onResultCallback) {
-          this.onResultCallback({ action: 'POWER', value: true, raw: transcript });
+
+        // Dispara comando explícito POWER_ON
+        try {
+          if (this.onResultCallback) {
+            this.onResultCallback({
+              command: 'POWER_ON',
+              action: 'POWER_ON',
+              value: true,
+              raw: transcript
+            });
+          }
+          if (window.carouselApplyPower) {
+            window.carouselApplyPower(true);
+          }
+        } catch (err) {
+          console.error('[Voice] Erro ao ligar:', err);
         }
+
+        try { this.stop(); } catch (e) {}
       }
     };
 

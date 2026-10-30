@@ -540,6 +540,9 @@ void sendMp3Command(uint8_t cmd, uint16_t arg) {
     comm.sendMasterPower(turnOn);
   }
 
+  // Exportação global direta para ser acionada instantaneamente pelo voice.js
+  window.carouselApplyPower = applyPowerState;
+
   comm.onStateUpdate((state) => {
     // Sincroniza caso venha telemetria externa do ESP32 físico
     if (state.power) {
@@ -663,9 +666,15 @@ void sendMp3Command(uint8_t cmd, uint16_t arg) {
 
   // RESPOSTA IMEDIATA AO COMANDO DE VOZ
   voice.onCommand((cmdResult) => {
-    const isPowerOn = !!cmdResult.value;
+    // Trata explicitamente POWER_OFF e POWER_ON
+    const isDesligar = cmdResult.command === 'POWER_OFF' ||
+                       cmdResult.action === 'POWER_OFF' ||
+                       cmdResult.value === false;
+
+    const isPowerOn = !isDesligar;
+
     voiceTranscript.textContent = `Reconhecido: "${cmdResult.raw}" -> ${isPowerOn ? 'LIGADO' : 'DESLIGADO'}`;
-    appendLog(`Comando de Voz: ${isPowerOn ? 'LIGAR TUDO' : 'DESLIGAR TUDO'}`, 'success');
+    appendLog(`Comando de Voz: ${isPowerOn ? 'LIGAR TUDO (POWER_ON)' : 'DESLIGAR TUDO (POWER_OFF)'}`, 'success');
 
     // Executa a ação mestre unificada NA HORA (Zero delay)
     applyPowerState(isPowerOn);
