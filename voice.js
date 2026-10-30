@@ -1,12 +1,10 @@
 /**
  * ==========================================================================
- * CARROSSEL INTELIGENTE MAKER - RECONHECIMENTO DE VOZ INSTANTÂNEO (voice.js)
+ * CARROSSEL INTELIGENTE MAKER - RECONHECIMENTO DE VOZ ULTRA-RÁPIDO (voice.js)
  * ==========================================================================
- * Resposta em TEMPO REAL (Zero Delay via interimResults).
- * Dispara o comando no exato milissegundo em que a palavra é dita.
- * Comandos obrigatórios:
- * - "Ligar" -> Liga o carrossel na hora
- * - "Desligar" -> Desliga o carrossel na hora
+ * - Resposta Imediata (Zero Delay).
+ * - Desliga e Liga sem hesitação.
+ * - Tratamento universal de termos e sinônimos.
  */
 
 class VoiceRecognitionManager {
@@ -26,7 +24,7 @@ class VoiceRecognitionManager {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
 
     if (!SpeechRecognition) {
-      console.warn('[Voice] Web Speech API não é suportada neste navegador.');
+      console.warn('[Voice] Web Speech API não suportada neste navegador.');
       this.isSupported = false;
       return;
     }
@@ -34,15 +32,15 @@ class VoiceRecognitionManager {
     this.isSupported = true;
     this.recognition = new SpeechRecognition();
     this.recognition.lang = 'pt-BR';
-    this.recognition.continuous = true;
-    this.recognition.interimResults = true; // RESPOSTA INSTANTÂNEA EM TEMPO REAL!
+    this.recognition.continuous = false; // Mais confiável no Android e iOS
+    this.recognition.interimResults = true; // Permite pegar a palavra no mesmo milissegundo
     this.recognition.maxAlternatives = 1;
 
     this.recognition.onstart = () => {
       this.isListening = true;
       this.alreadyHandled = false;
       if (this.onStatusChangeCallback) {
-        this.onStatusChangeCallback('listening', 'Ouvindo... Diga "Ligar" ou "Desligar"');
+        this.onStatusChangeCallback('listening', 'Escutando... Diga "Ligar" ou "Desligar"');
       }
     };
 
@@ -50,34 +48,38 @@ class VoiceRecognitionManager {
       if (this.alreadyHandled) return;
 
       let transcript = '';
-      for (let i = event.resultIndex; i < event.results.length; i++) {
+      for (let i = 0; i < event.results.length; i++) {
         transcript += event.results[i][0].transcript + ' ';
       }
-      transcript = transcript.trim().toLowerCase();
+      transcript = transcript.trim();
 
-      // Normalização sem acentos e remoção de pontuações (ex: "desligar.")
+      // Remove acentos e caracteres especiais
       const clean = transcript.normalize("NFD")
                               .replace(/[\u0300-\u036f]/g, "")
                               .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "")
                               .toLowerCase()
                               .trim();
 
-      // 1. Prioridade absoluta para DESLIGAR
+      if (!clean) return;
+
+      // 1. RECONHECIMENTO DE DESLIGAR (PRIORIDADE ABSOLUTA)
       const isDesligar = clean.includes('deslig') ||
-                         clean.includes('desativ') ||
                          clean.includes('parar') ||
                          clean.includes('pare') ||
                          clean.includes('para') ||
+                         clean.includes('apag') ||
                          clean.includes('stop') ||
+                         clean.includes('desat') ||
                          clean.includes('corta');
 
-      // 2. Comando LIGAR (somente se não for desligar)
+      // 2. RECONHECIMENTO DE LIGAR (SÓ SE NÃO FOR DESLIGAR)
       const isLigar = !isDesligar && (
                          clean.includes('lig') ||
                          clean.includes('inici') ||
                          clean.includes('ativ') ||
-                         clean.includes('rodar') ||
-                         clean.includes('gira')
+                         clean.includes('rod') ||
+                         clean.includes('gir') ||
+                         clean.includes('start')
                       );
 
       if (isDesligar) {
@@ -96,16 +98,12 @@ class VoiceRecognitionManager {
     };
 
     this.recognition.onerror = (event) => {
-      console.error('[Voice Error]', event.error);
+      console.warn('[Voice Error]', event.error);
       this.isListening = false;
-      let errorMsg = `Erro no microfone: ${event.error}`;
-      if (event.error === 'not-allowed') {
-        errorMsg = 'Permissão de microfone negada no navegador.';
-      } else if (event.error === 'no-speech') {
-        errorMsg = 'Nenhuma fala detectada. Toque no botão e fale.';
-      }
       if (this.onStatusChangeCallback) {
-        this.onStatusChangeCallback('error', errorMsg);
+        let msg = 'Toque no botão e fale.';
+        if (event.error === 'not-allowed') msg = 'Permita o acesso ao microfone.';
+        this.onStatusChangeCallback('error', msg);
       }
     };
 
@@ -127,7 +125,7 @@ class VoiceRecognitionManager {
 
   toggle() {
     if (!this.isSupported) {
-      alert('Seu navegador atual não suporta reconhecimento de voz Web Speech API (pt-BR). Use o Google Chrome.');
+      alert('Seu navegador não suporta reconhecimento de voz Web Speech API. Use o Google Chrome.');
       return;
     }
 
@@ -143,7 +141,7 @@ class VoiceRecognitionManager {
       this.alreadyHandled = false;
       this.recognition.start();
     } catch (e) {
-      console.warn('Microfone já ativo ou ocupado:', e);
+      console.warn('Microfone já ativo:', e);
     }
   }
 
