@@ -624,9 +624,20 @@ void sendMp3Command(uint8_t cmd, uint16_t arg) {
   });
 
   voice.onCommand(async (cmdResult) => {
-    voiceTranscript.textContent = `Reconhecido: "${cmdResult.raw}"`;
-    appendLog(`Comando de voz detectado: "${cmdResult.raw}" -> ${cmdResult.value ? 'LIGAR' : 'DESLIGAR'}`, 'success');
-    await comm.sendMasterPower(cmdResult.value);
+    const isPowerOn = !!cmdResult.value;
+    voiceTranscript.textContent = `Reconhecido: "${cmdResult.raw}" -> ${isPowerOn ? 'LIGADO' : 'DESLIGADO'}`;
+    appendLog(`Comando de Voz: ${isPowerOn ? 'LIGAR TUDO' : 'DESLIGAR TUDO'}`, 'success');
+
+    // 1. Resposta visual INSTANTÂNEA na tela (Zero delay para o usuário)
+    comm.hardwareState.power = isPowerOn;
+    comm.hardwareState.motor = isPowerOn;
+    comm.hardwareState.audio = isPowerOn;
+    comm.hardwareState.light = isPowerOn;
+    comm.hardwareState.motorSpeed = isPowerOn ? 255 : 0;
+    comm.notifyState();
+
+    // 2. Transmissão imediata para o ESP32 (Wi-Fi ou BLE)
+    await comm.sendMasterPower(isPowerOn);
   });
 
   appendLog('Painel de Controle Carrossel MAKER inicializado.', 'info');

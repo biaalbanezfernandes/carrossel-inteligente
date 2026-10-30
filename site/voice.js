@@ -1,12 +1,12 @@
 /**
  * ==========================================================================
- * CARROSSEL INTELIGENTE MAKER - RECONHECIMENTO DE VOZ (voice.js)
+ * CARROSSEL INTELIGENTE MAKER - RECONHECIMENTO DE VOZ INSTANTÂNEO (voice.js)
  * ==========================================================================
- * Reconhecimento local no navegador/celular via Web Speech API (pt-BR).
+ * Resposta em TEMPO REAL (Zero Delay via interimResults).
+ * Dispara o comando no exato milissegundo em que a palavra é dita.
  * Comandos obrigatórios:
- * - "Ligar" -> Aciona o carrossel completo
- * - "Desligar" -> Para o carrossel com segurança
- * Suporta sinônimos naturais e comandos pontuais.
+ * - "Ligar" -> Liga o carrossel na hora
+ * - "Desligar" -> Desliga o carrossel na hora
  */
 
 class VoiceRecognitionManager {
@@ -14,6 +14,7 @@ class VoiceRecognitionManager {
     this.recognition = null;
     this.isListening = false;
     this.isSupported = false;
+    this.alreadyHandled = false;
 
     this.onResultCallback = null;
     this.onStatusChangeCallback = null;
@@ -33,34 +34,75 @@ class VoiceRecognitionManager {
     this.isSupported = true;
     this.recognition = new SpeechRecognition();
     this.recognition.lang = 'pt-BR';
-    this.recognition.continuous = false;
-    this.recognition.interimResults = false;
-    this.recognition.maxAlternatives = 2;
+    this.recognition.continuous = true;
+    this.recognition.interimResults = true; // RESPOSTA INSTANTÂNEA EM TEMPO REAL!
+    this.recognition.maxAlternatives = 1;
 
     this.recognition.onstart = () => {
       this.isListening = true;
+      this.alreadyHandled = false;
       if (this.onStatusChangeCallback) {
-        this.onStatusChangeCallback('listening', 'Ouvindo... Fale "Ligar" ou "Desligar"');
+        this.onStatusChangeCallback('listening', 'Ouvindo... Diga "Ligar" ou "Desligar"');
       }
     };
 
     this.recognition.onresult = (event) => {
-      let matchedText = '';
-      for (let i = 0; i < event.results.length; i++) {
-        matchedText += event.results[i][0].transcript.toLowerCase() + ' ';
+      if (this.alreadyHandled) return;
+
+      let transcript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript + ' ';
       }
-      matchedText = matchedText.trim();
-      this.processTranscript(matchedText);
+      transcript = transcript.trim().toLowerCase();
+
+      // Normalização sem acentos e remoção de pontuações (ex: "desligar.")
+      const clean = transcript.normalize("NFD")
+                              .replace(/[\u0300-\u036f]/g, "")
+                              .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "")
+                              .toLowerCase()
+                              .trim();
+
+      // 1. Prioridade absoluta para DESLIGAR
+      const isDesligar = clean.includes('deslig') ||
+                         clean.includes('desativ') ||
+                         clean.includes('parar') ||
+                         clean.includes('pare') ||
+                         clean.includes('para') ||
+                         clean.includes('stop') ||
+                         clean.includes('corta');
+
+      // 2. Comando LIGAR (somente se não for desligar)
+      const isLigar = !isDesligar && (
+                         clean.includes('lig') ||
+                         clean.includes('inici') ||
+                         clean.includes('ativ') ||
+                         clean.includes('rodar') ||
+                         clean.includes('gira')
+                      );
+
+      if (isDesligar) {
+        this.alreadyHandled = true;
+        this.stop();
+        if (this.onResultCallback) {
+          this.onResultCallback({ action: 'POWER', value: false, raw: transcript });
+        }
+      } else if (isLigar) {
+        this.alreadyHandled = true;
+        this.stop();
+        if (this.onResultCallback) {
+          this.onResultCallback({ action: 'POWER', value: true, raw: transcript });
+        }
+      }
     };
 
     this.recognition.onerror = (event) => {
       console.error('[Voice Error]', event.error);
       this.isListening = false;
-      let errorMsg = `Erro no reconhecimento: ${event.error}`;
+      let errorMsg = `Erro no microfone: ${event.error}`;
       if (event.error === 'not-allowed') {
         errorMsg = 'Permissão de microfone negada no navegador.';
       } else if (event.error === 'no-speech') {
-        errorMsg = 'Nenhuma fala detectada. Tente falar mais próximo ao microfone.';
+        errorMsg = 'Nenhuma fala detectada. Toque no botão e fale.';
       }
       if (this.onStatusChangeCallback) {
         this.onStatusChangeCallback('error', errorMsg);
@@ -85,62 +127,31 @@ class VoiceRecognitionManager {
 
   toggle() {
     if (!this.isSupported) {
-      alert('Seu navegador atual não suporta reconhecimento de voz Web Speech API (pt-BR). Experimente o Google Chrome ou Microsoft Edge.');
+      alert('Seu navegador atual não suporta reconhecimento de voz Web Speech API (pt-BR). Use o Google Chrome.');
       return;
     }
 
     if (this.isListening) {
-      try {
-        this.recognition.stop();
-      } catch (e) {}
+      this.stop();
     } else {
-      try {
-        this.recognition.start();
-      } catch (e) {
-        console.error('Falha ao iniciar reconhecimento:', e);
-      }
+      this.start();
     }
   }
 
-  processTranscript(text) {
-    console.log('[Voice Transcript]', text);
-    let identifiedAction = null;
-
-<<<<<<< HEAD
-    // Normalização sem acentos e remoção de pontuações (ex: "desligar.") para garantir precisão absoluta
-=======
-    // Normalização sem acentos e remoção de pontuações (ex: "desligar.")
->>>>>>> 81559c4f337c2f276fe33746458dc598c4125f2f
-    const clean = text.normalize("NFD")
-                      .replace(/[\u0300-\u036f]/g, "")
-                      .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, "")
-                      .toLowerCase()
-                      .trim();
-
-    // 1. REGRA CRÍTICA: Checar DESLIGAR PRIMEIRO (mesmo com ponto ou variações)
-    const isDesligar = /\b(desligar|desliga|desligue|desativa|desativar|desative|parar|pare|para|interromper|corta)\b/.test(clean) ||
-                       clean.includes('deslig') ||
-                       clean.includes('desativ') ||
-                       clean.includes('parar') ||
-                       clean.includes('pare');
-
-    // 2. Comandos de LIGAR
-    const isLigar = /\b(ligar|liga|ligue|iniciar|inicia|inicie|ativar|ativa|ative|rodar|gira|girar)\b/.test(clean) ||
-                    clean.includes('inici') ||
-                    clean.includes('rodar') ||
-                    clean.includes('ativ');
-
-    if (isDesligar) {
-      identifiedAction = { action: 'POWER', value: false, raw: text };
-    } else if (isLigar || clean.includes('liga')) {
-      identifiedAction = { action: 'POWER', value: true, raw: text };
+  start() {
+    try {
+      this.alreadyHandled = false;
+      this.recognition.start();
+    } catch (e) {
+      console.warn('Microfone já ativo ou ocupado:', e);
     }
+  }
 
-    if (this.onResultCallback && identifiedAction) {
-      this.onResultCallback(identifiedAction);
-    } else if (this.onStatusChangeCallback) {
-      this.onStatusChangeCallback('unrecognized', `Não entendi: "${text}". Diga "Ligar" ou "Desligar".`);
-    }
+  stop() {
+    try {
+      this.isListening = false;
+      this.recognition.stop();
+    } catch (e) {}
   }
 }
 
