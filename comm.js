@@ -118,13 +118,28 @@ class CarouselCommManager {
     return this.dispatchCommand(payload, `Comando Mestre: ${powerOn ? 'LIGAR TUDO' : 'DESLIGAR TUDO'}`);
   }
 
-  async sendMotor(on, speed = 220) {
+  async sendMotor(on, speed = 220, isSpeedChange = false) {
+    // No código gravado no ESP32, o GPIO 26 (IN1) fica HIGH (255) e o GPIO 27 (IN2) recebe o PWM (speed).
+    // Na Ponte H L298N, a tensão efetiva no motor é (IN1 - IN2) = (255 - speed).
+    // Se enviarmos 217 ou 255, o pino 27 também fica HIGH e freia o motor!
+    // Enviando hwSpeed baixo (ex: 5 para velocidade normal/máxima), o GPIO 26 vai para HIGH
+    // e o GPIO 27 fica 98% em LOW (5/255), fazendo o motor girar com força total!
+    const clampedUiSpeed = Math.max(0, Math.min(255, speed));
+    const hwSpeed = on
+      ? (clampedUiSpeed >= 200 ? 5 : Math.max(5, Math.min(140, 255 - clampedUiSpeed)))
+      : 0;
+
+    if (on && isSpeedChange && !this.isDemoMode) {
+      // No código do ESP32, o loop só atualiza se currentSpeed < targetSpeed; zera rápido antes de aplicar nova velocidade
+      await this.dispatchCommand({ cmd: 'MOTOR', value: false, speed: 0 }, null);
+    }
+
     const payload = {
       cmd: 'MOTOR',
       value: !!on,
-      speed: on ? speed : 0
+      speed: hwSpeed
     };
-    return this.dispatchCommand(payload, `Motor: ${on ? 'LIGAR' : 'PARAR'} (PWM: ${on ? speed : 0})`);
+    return this.dispatchCommand(payload, `Motor: ${on ? 'LIGAR' : 'PARAR'} (Potência: ${on ? Math.round((clampedUiSpeed / 255) * 100) : 0}% | IN1=HIGH, IN2=${hwSpeed})`);
   }
 
   async sendAudio(on) {
@@ -513,8 +528,9 @@ class CarouselCommManager {
         this.hardwareState.light = !!payload.light;
 
         if (isMotorOn) {
-          // Se o ESP32 acabou de ligar e mandou speed=0 antes da rampa subir, preserva a velocidade alvo na UI
-          this.hardwareState.motorSpeed = (rawSpeed && rawSpeed > 0) ? rawSpeed : (this.hardwareState.motorSpeed || 220);
+          if (!this.hardwareState.motorSpeed) {
+            this.hardwareState.motorSpeed = (rawSpeed && rawSpeed > 140) ? rawSpeed : 217;
+          }
         } else {
           this.hardwareState.motorSpeed = 0;
         }
@@ -524,7 +540,7 @@ class CarouselCommManager {
 
         if (prevMotor !== this.hardwareState.motor || prevSpeed !== this.hardwareState.motorSpeed) {
           this.log(
-            `Telemetria ESP32: [Motor: ${this.hardwareState.motor ? 'LIGADO' : 'PARADO'} | PWM: ${this.hardwareState.motorSpeed}]`,
+            `Telemetria ESP32: [Motor: ${this.hardwareState.motor ? 'LIGADO' : 'PARADO'}]`,
             'info'
           );
         }

@@ -30,7 +30,7 @@
 #define PIN_MOTOR_IN2    27    // IN2 da L298N (mantido em LOW para não frear a Ponte H!)
 #define PIN_MOTOR_ENA    25    // Auxiliar Liga/Desliga (caso ENA ou Relé esteja no 25)
 
-#define PWM_FREQ         20000 // 20 kHz (sem zumbido audível)
+#define PWM_FREQ         1000  // 1 kHz (ideal para torque forte na Ponte H L298N)
 #define PWM_BITS         8     // Resolução de 8 bits (0 a 255)
 
 // --- CONFIGURAÇÃO DA REDE WI-FI & BLUETOOTH ---

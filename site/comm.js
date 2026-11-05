@@ -118,13 +118,22 @@ class CarouselCommManager {
     return this.dispatchCommand(payload, `Comando Mestre: ${powerOn ? 'LIGAR TUDO' : 'DESLIGAR TUDO'}`);
   }
 
-  async sendMotor(on, speed = 220) {
+  async sendMotor(on, speed = 220, isSpeedChange = false) {
+    const clampedUiSpeed = Math.max(0, Math.min(255, speed));
+    const hwSpeed = on
+      ? (clampedUiSpeed >= 200 ? 5 : Math.max(5, Math.min(140, 255 - clampedUiSpeed)))
+      : 0;
+
+    if (on && isSpeedChange && !this.isDemoMode) {
+      await this.dispatchCommand({ cmd: 'MOTOR', value: false, speed: 0 }, null);
+    }
+
     const payload = {
       cmd: 'MOTOR',
       value: !!on,
-      speed: on ? speed : 0
+      speed: hwSpeed
     };
-    return this.dispatchCommand(payload, `Motor: ${on ? 'LIGAR' : 'PARAR'} (PWM: ${on ? speed : 0})`);
+    return this.dispatchCommand(payload, `Motor: ${on ? 'LIGAR' : 'PARAR'} (Potência: ${on ? Math.round((clampedUiSpeed / 255) * 100) : 0}% | IN1=HIGH, IN2=${hwSpeed})`);
   }
 
   async sendAudio(on) {
@@ -509,7 +518,9 @@ class CarouselCommManager {
         this.hardwareState.light = !!payload.light;
 
         if (isMotorOn) {
-          this.hardwareState.motorSpeed = (rawSpeed && rawSpeed > 0) ? rawSpeed : (this.hardwareState.motorSpeed || 220);
+          if (!this.hardwareState.motorSpeed) {
+            this.hardwareState.motorSpeed = (rawSpeed && rawSpeed > 140) ? rawSpeed : 217;
+          }
         } else {
           this.hardwareState.motorSpeed = 0;
         }
@@ -519,7 +530,7 @@ class CarouselCommManager {
 
         if (prevMotor !== this.hardwareState.motor || prevSpeed !== this.hardwareState.motorSpeed) {
           this.log(
-            `Telemetria ESP32: [Motor: ${this.hardwareState.motor ? 'LIGADO' : 'PARADO'} | PWM: ${this.hardwareState.motorSpeed}]`,
+            `Telemetria ESP32: [Motor: ${this.hardwareState.motor ? 'LIGADO' : 'PARADO'}]`,
             'info'
           );
         }
