@@ -98,14 +98,14 @@ class CarouselCommManager {
     return this.dispatchCommand(payload, `Comando Mestre: ${powerOn ? 'LIGAR TUDO' : 'DESLIGAR TUDO'}`);
   }
 
-  async sendMotor(on) {
+  async sendMotor(on, speed = 220) {
     const payload = {
       cmd: 'MOTOR',
       value: !!on,
-      speed: on ? 255 : 0,
+      speed: on ? speed : 0,
       ts: Date.now()
     };
-    return this.dispatchCommand(payload, `Motor: ${on ? 'LIGAR' : 'PARAR'}`);
+    return this.dispatchCommand(payload, `Motor: ${on ? 'LIGAR' : 'PARAR'} (PWM: ${on ? speed : 0})`);
   }
 
   async sendAudio(on) {

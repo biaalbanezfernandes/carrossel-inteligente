@@ -1,19 +1,24 @@
 /**
  * ==========================================================================
- * CARROSSEL INTELIGENTE MAKER - CONTROLE, NAVEGAÇÃO & GERADOR NO-CODE (app.js)
+ * CARROSSEL INTELIGENTE MAKER - CONTROLE DO MOTOR & GUIAS (app.js v4.0)
  * ==========================================================================
- * - Orquestra eventos de tela e navegação por abas (Controle, Esquema, Config)
- * - Integração de voz e comunicação Wi-Fi / BLE com ESP32
- * - Seletor de modo de alimentação (Pilhas/Bateria vs Fonte) com conselhos técnicos
- * - Gerador No-Code de sketch C++ completo para Arduino IDE com 1 clique
+ * Versão simplificada focada exclusivamente no MOTOR do carrossel.
+ * - Controle Mestre do Motor com rampa e freio
+ * - Comando de Voz instantâneo (Ligar / Desligar)
+ * - Slider e presets de velocidade do motor (50%, 85%, 100%)
+ * - Navegação de 5 abas (Controle, Esquemas, Gravar ESP32, Conectar, Código)
+ * - Gerador de código em 1 clique para Arduino IDE
  */
 
 document.addEventListener('DOMContentLoaded', () => {
   const comm = window.carouselComm;
   const voice = window.carouselVoice;
 
+  // Estado local do motor
+  let motorSpeedPercent = 85;
+
   // ========================================================================
-  // NAVEGAÇÃO ENTRE ABAS (TABS)
+  // NAVEGAÇÃO ENTRE AS 5 ABAS
   // ========================================================================
   const tabButtons = document.querySelectorAll('.tab-btn');
   const tabPanes = document.querySelectorAll('.tab-pane');
@@ -34,75 +39,87 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // ========================================================================
-  // SELETOR INTERATIVO DE ALIMENTAÇÃO (PILHAS/BATERIA vs FONTE)
+  // SELETOR DE ESQUEMA DO MOTOR (RELÉ vs MOSFET)
   // ========================================================================
-  const powerAdvice = document.getElementById('power-advice');
-  const powerButtons = document.querySelectorAll('.btn-power-opt');
+  const btnCircuitOpts = document.querySelectorAll('.btn-circuit-opt');
+  const circuitRelayBox = document.getElementById('circuit-detail-relay');
+  const circuitMosfetBox = document.getElementById('circuit-detail-mosfet');
 
-  const powerAdvices = {
-    battery: `
-      <strong>💡 Dicas Críticas para Alimentação por Pilhas ou Baterias:</strong><br>
-      • <strong>Melhor Opção (Bateria Recarregável):</strong> Utilize <strong>2 Baterias 18650 Li-Ion (7.4V)</strong> ligadas a um módulo regulador Step-Down LM2596 regulado em 5.0V. Isso garante alta corrente e longa duração sem quedas bruscas.<br>
-      • <strong>Opção Power Bank USB:</strong> Um Power Bank de 5V com saída mínima de 2.4A pode alimentar o ESP32 e o motor se este for de 5V.<br>
-      • <strong>Cuidado com Pilhas AA Comuns:</strong> 4 pilhas AA alcalinas fornecem ~6V, mas perdem tensão rapidamente com o consumo contínuo do motor e Wi-Fi.<br>
-      • ⚠️ <strong>NUNCA utilize bateria de 9V (a quadradinha):</strong> Ela possui resistência interna muito alta e descarrega em menos de 5 minutos com motores elétricos!
-    `,
-    powersupply: `
-      <strong>🔌 Dicas para Alimentação por Fonte de Tomada (Recomendado para Feiras / Testes):</strong><br>
-      • <strong>Fonte 5V / 3A a 4A:</strong> Ideal se o seu motor e pisca-pisca forem de 5V (USB). Alimenta o pino VIN do ESP32, o DFPlayer e o motor de forma estável e contínua.<br>
-      • <strong>Fonte 12V / 3A:</strong> Ideal se o seu motor for de 12V. O 12V vai direto para o borne VM do driver de motor, e um módulo Step-Down abaixa para 5.0V para alimentar o ESP32 e o som.<br>
-      • <strong>Aviso de Segurança:</strong> Fontes chaveadas devem possuir selo INMETRO e gabinete isolado para garantir segurança total com crianças.
-    `
-  };
-
-  function updatePowerAdvice(mode) {
-    if (powerAdvice && powerAdvices[mode]) {
-      powerAdvice.innerHTML = powerAdvices[mode];
-    }
-  }
-
-  powerButtons.forEach(btn => {
+  btnCircuitOpts.forEach(btn => {
     btn.addEventListener('click', () => {
-      powerButtons.forEach(b => b.classList.remove('active'));
+      btnCircuitOpts.forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
-      const mode = btn.getAttribute('data-power');
-      updatePowerAdvice(mode);
+      const mode = btn.getAttribute('data-circuit');
+
+      if (mode === 'relay') {
+        circuitRelayBox.classList.remove('hidden');
+        circuitMosfetBox.classList.add('hidden');
+      } else {
+        circuitRelayBox.classList.add('hidden');
+        circuitMosfetBox.classList.remove('hidden');
+      }
     });
   });
 
-  updatePowerAdvice('battery');
+  // ========================================================================
+  // CONTROLE DE VELOCIDADE DO MOTOR
+  // ========================================================================
+  const speedSlider = document.getElementById('motor-speed-slider');
+  const speedDisplay = document.getElementById('speed-display');
+  const presetButtons = document.querySelectorAll('.btn-preset');
+
+  function updateMotorSpeed(newVal) {
+    motorSpeedPercent = parseInt(newVal, 10);
+    if (speedSlider) speedSlider.value = motorSpeedPercent;
+    if (speedDisplay) speedDisplay.textContent = `${motorSpeedPercent}%`;
+
+    presetButtons.forEach(btn => {
+      const pVal = parseInt(btn.getAttribute('data-speed'), 10);
+      btn.classList.toggle('active', pVal === motorSpeedPercent);
+    });
+
+    // Se o motor estiver ligado, atualiza a velocidade em tempo real
+    if (comm.hardwareState.power) {
+      const pwmValue = Math.round((motorSpeedPercent / 100) * 255);
+      comm.hardwareState.motorSpeed = pwmValue;
+      comm.sendMotor(true, pwmValue);
+      realMotor.textContent = `LIGADO (${motorSpeedPercent}%)`;
+    }
+  }
+
+  if (speedSlider) {
+    speedSlider.addEventListener('input', (e) => {
+      updateMotorSpeed(e.target.value);
+    });
+  }
+
+  presetButtons.forEach(btn => {
+    btn.addEventListener('click', () => {
+      updateMotorSpeed(btn.getAttribute('data-speed'));
+    });
+  });
 
   // ========================================================================
-  // GERADOR DE CÓDIGO NO-CODE PARA ESP32 / ARDUINO IDE
+  // CÓDIGO FONTE DO ESP32 (ARDUINO IDE - COMPLETO E EM 1 ARQUIVO)
   // ========================================================================
-  const btnGenerateCode = document.getElementById('btn-generate-code');
-  const btnCopyCode = document.getElementById('btn-copy-code');
   const codeBox = document.getElementById('generated-code-box');
+  const btnCopyCode = document.getElementById('btn-copy-code');
   const copyStatus = document.getElementById('copy-status');
 
-  function generateEsp32Sketch() {
-    const ssid = document.getElementById('cfg-wifi-ssid').value.trim() || 'Carrossel_Maker_ESP32';
-    const pass = document.getElementById('cfg-wifi-pass').value.trim() || 'carrossel123';
-    const bleName = document.getElementById('cfg-ble-name').value.trim() || 'Carrossel_Maker_BLE';
-    const speed = document.getElementById('cfg-motor-speed').value;
-    const rampMode = document.getElementById('cfg-ramp-speed').value;
-    const volume = document.getElementById('cfg-audio-vol').value || 22;
-    const watchdogTimeout = document.getElementById('cfg-watchdog').value || 8000;
-
-    let rampStep = 5;
-    let rampInterval = 20;
-    if (rampMode === 'slow') {
-      rampStep = 2;
-      rampInterval = 25;
-    } else if (rampMode === 'fast') {
-      rampStep = 10;
-      rampInterval = 15;
-    }
-
-    const sketch = `/*
+  const esp32SketchSource = `/*
  * ==============================================================================
- * PROJETO: CARROSSEL INTELIGENTE MAKER - SKETCH COMPLETO PARA ARDUINO IDE
- * Placa: ESP32 Dev Module (ESP32 Convencional)
+ * PROJETO: CARROSSEL INTELIGENTE MAKER - CONTROLE DO MOTOR
+ * Placa: ESP32 Dev Module (ESP32 Convencional 38 pinos)
+ * ==============================================================================
+ * BIBLIOTECAS NECESSÁRIAS (Instalar via Ferramentas -> Gerenciar Bibliotecas):
+ * 1. "ArduinoJson" (por Benoit Blanchon - versão 6.x)
+ * 2. "WebSockets" (por Markus Sattler - versão 2.4.x)
+ * ==============================================================================
+ * PINOS DE LIGAÇÃO:
+ * - Pino GPIO 25: Sinal de controle do Motor (IN do Relé ou Gate do Transistor)
+ * - Pino GPIO 27: Sinal PWM de velocidade (opcional se usar driver)
+ * - Pino GND: Conectar no GND do Relé/Bateria
+ * - Pino VIN: 5V da Fonte/USB
  * ==============================================================================
  */
 
@@ -111,28 +128,19 @@ document.addEventListener('DOMContentLoaded', () => {
 #include <WebServer.h>
 #include <WebSocketsServer.h>
 #include <ArduinoJson.h>
-#include <HardwareSerial.h>
 #include <BLEDevice.h>
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <BLE2902.h>
 
-#define PIN_MOTOR_IN1      25
-#define PIN_MOTOR_IN2      26
-#define PIN_MOTOR_PWM      27
-#define PIN_AUDIO_TX       17
-#define PIN_AUDIO_RX       16
-#define PIN_LIGHT_CTRL     33
-#define PIN_EMERGENCY_BTN  14
+// --- PINOS ---
+#define PIN_MOTOR_CTRL   25    // Liga/Desliga no Relé ou Transistor
+#define PIN_MOTOR_PWM    27    // PWM de velocidade
 
-const char* WIFI_SSID = "${ssid}";
-const char* WIFI_PASS = "${pass}";
-const char* BLE_NAME  = "${bleName}";
-const uint8_t MAX_SPEED = ${speed};
-const uint8_t RAMP_STEP = ${rampStep};
-const unsigned long RAMP_INTERVAL = ${rampInterval};
-const uint8_t INITIAL_VOLUME = ${volume};
-const unsigned long WATCHDOG_TIMEOUT = ${watchdogTimeout};
+// --- CONFIGURAÇÃO DA REDE WI-FI & BLUETOOTH ---
+const char* WIFI_SSID = "Carrossel_Maker_ESP32";
+const char* WIFI_PASS = "carrossel123";
+const char* BLE_NAME  = "Carrossel_Maker_BLE";
 
 #define BLE_SERVICE_UUID    "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
 #define BLE_CHAR_CMD_UUID   "beb5483e-36e1-4688-b7f5-ea07361b26a8"
@@ -140,28 +148,25 @@ const unsigned long WATCHDOG_TIMEOUT = ${watchdogTimeout};
 
 WebServer server(80);
 WebSocketsServer ws(81);
-HardwareSerial mp3Serial(2);
 
 BLEServer* pBleServer = nullptr;
 BLECharacteristic* pBleCmdChar = nullptr;
 BLECharacteristic* pBleStateChar = nullptr;
 bool bleConnected = false;
 
-bool statePower = false;
-bool stateMotor = false;
-bool stateAudio = false;
-bool stateLight = false;
+// Estado do Motor
+bool motorState = false;
 uint8_t currentSpeed = 0;
 uint8_t targetSpeed = 0;
-bool targetActive = false;
 unsigned long lastRampTime = 0;
 unsigned long lastCommActivity = 0;
+const unsigned long WATCHDOG_TIMEOUT = 10000; // 10s de segurança sem celular
 
-void sendMp3Command(uint8_t cmd, uint16_t arg);
 void broadcastState();
-void processJsonCommand(const char* json);
-void emergencyStop(const char* reason);
+void processCommand(const char* json);
+void setMotorPower(bool on, uint8_t speed = 255);
 
+// Callbacks Bluetooth BLE
 class ServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pServer) { bleConnected = true; lastCommActivity = millis(); }
     void onDisconnect(BLEServer* pServer) { bleConnected = false; pServer->startAdvertising(); }
@@ -172,7 +177,7 @@ class CmdCallbacks: public BLECharacteristicCallbacks {
         std::string rx = pCharacteristic->getValue();
         if (rx.length() > 0) {
             lastCommActivity = millis();
-            processJsonCommand(rx.c_str());
+            processCommand(rx.c_str());
         }
     }
 };
@@ -181,31 +186,28 @@ void setup() {
   Serial.begin(115200);
   delay(300);
 
-  pinMode(PIN_MOTOR_IN1, OUTPUT);
-  pinMode(PIN_MOTOR_IN2, OUTPUT);
+  // 1. Configura pinos de saída (GARANTE QUE COMEÇA DESLIGADO)
+  pinMode(PIN_MOTOR_CTRL, OUTPUT);
   pinMode(PIN_MOTOR_PWM, OUTPUT);
-  pinMode(PIN_LIGHT_CTRL, OUTPUT);
-  pinMode(PIN_EMERGENCY_BTN, INPUT_PULLUP);
+  digitalWrite(PIN_MOTOR_CTRL, LOW);
 
-  digitalWrite(PIN_MOTOR_IN1, LOW);
-  digitalWrite(PIN_MOTOR_IN2, LOW);
-  digitalWrite(PIN_LIGHT_CTRL, LOW);
-
+  // Configura PWM de 20kHz (sem zumbido)
   ledcSetup(0, 20000, 8);
   ledcAttachPin(PIN_MOTOR_PWM, 0);
   ledcWrite(0, 0);
 
-  mp3Serial.begin(9600, SERIAL_8N1, PIN_AUDIO_RX, PIN_AUDIO_TX);
-  delay(100);
-  sendMp3Command(0x06, INITIAL_VOLUME);
-  delay(50);
-  sendMp3Command(0x16, 0);
-
+  // 2. Inicia Wi-Fi em modo Ponto de Acesso (AP)
   WiFi.mode(WIFI_AP);
   WiFi.softAP(WIFI_SSID, WIFI_PASS);
+  Serial.println("\n[Wi-Fi] Rede criada: Carrossel_Maker_ESP32 (senha: carrossel123)");
+  Serial.print("[Wi-Fi] IP do ESP32: "); Serial.println(WiFi.softAPIP());
 
+  // 3. Servidor Web e WebSocket
   server.enableCORS(true);
-  server.on("/api/ping", HTTP_GET, []() { lastCommActivity = millis(); server.send(200, "application/json", "{\\"status\\":\\"ok\\"}"); });
+  server.on("/api/ping", HTTP_GET, []() {
+    lastCommActivity = millis();
+    server.send(200, "application/json", "{\\"status\\":\\"ok\\"}");
+  });
   server.begin();
 
   ws.begin();
@@ -215,19 +217,26 @@ void setup() {
       broadcastState();
     } else if (type == WStype_TEXT) {
       lastCommActivity = millis();
-      processJsonCommand((char*)payload);
+      processCommand((char*)payload);
     }
   });
 
+  // 4. Inicia Bluetooth BLE
   BLEDevice::init(BLE_NAME);
   pBleServer = BLEDevice::createServer();
   pBleServer->setCallbacks(new ServerCallbacks());
   BLEService *pService = pBleServer->createService(BLE_SERVICE_UUID);
 
-  pBleCmdChar = pService->createCharacteristic(BLE_CHAR_CMD_UUID, BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR);
+  pBleCmdChar = pService->createCharacteristic(
+    BLE_CHAR_CMD_UUID,
+    BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR
+  );
   pBleCmdChar->setCallbacks(new CmdCallbacks());
 
-  pBleStateChar = pService->createCharacteristic(BLE_CHAR_STATE_UUID, BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY);
+  pBleStateChar = pService->createCharacteristic(
+    BLE_CHAR_STATE_UUID,
+    BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
+  );
   pBleStateChar->addDescriptor(new BLE2902());
 
   pService->start();
@@ -237,28 +246,27 @@ void setup() {
   BLEDevice::startAdvertising();
 
   lastCommActivity = millis();
-  Serial.println("Pronto!");
+  Serial.println("[PRONTO] Carrossel MAKER pronto! Motor desligado por padrao.");
 }
 
 void loop() {
   unsigned long now = millis();
 
-  if (now - lastRampTime >= RAMP_INTERVAL) {
+  // Rampa suave de aceleração e desaceleração do motor (Soft-Start)
+  if (now - lastRampTime >= 15) {
     lastRampTime = now;
-    if (targetActive) {
+    if (motorState) {
       if (currentSpeed < targetSpeed) {
-        currentSpeed = (currentSpeed + RAMP_STEP >= targetSpeed) ? targetSpeed : currentSpeed + RAMP_STEP;
-        digitalWrite(PIN_MOTOR_IN1, HIGH);
-        digitalWrite(PIN_MOTOR_IN2, LOW);
+        currentSpeed = (currentSpeed + 5 >= targetSpeed) ? targetSpeed : currentSpeed + 5;
+        digitalWrite(PIN_MOTOR_CTRL, HIGH);
         ledcWrite(0, currentSpeed);
       }
     } else {
       if (currentSpeed > 0) {
-        currentSpeed = (currentSpeed <= RAMP_STEP) ? 0 : currentSpeed - RAMP_STEP;
+        currentSpeed = (currentSpeed <= 10) ? 0 : currentSpeed - 10;
         ledcWrite(0, currentSpeed);
         if (currentSpeed == 0) {
-          digitalWrite(PIN_MOTOR_IN1, LOW);
-          digitalWrite(PIN_MOTOR_IN2, LOW);
+          digitalWrite(PIN_MOTOR_CTRL, LOW);
         }
       }
     }
@@ -267,83 +275,49 @@ void loop() {
   server.handleClient();
   ws.loop();
 
-  if (digitalRead(PIN_EMERGENCY_BTN) == LOW) {
-    if (statePower) emergencyStop("Botao fisico");
-  }
-
-  if (statePower && (now - lastCommActivity > WATCHDOG_TIMEOUT)) {
-    emergencyStop("Timeout");
+  // Watchdog de segurança: se passar 10s sem sinal e o motor estiver rodando, para sozinho
+  if (motorState && (now - lastCommActivity > WATCHDOG_TIMEOUT)) {
+    Serial.println("[SEGURANCA] Celular desconectado! Parando motor.");
+    setMotorPower(false);
   }
 
   delay(4);
 }
 
-void processJsonCommand(const char* json) {
+void setMotorPower(bool on, uint8_t speed) {
+  motorState = on;
+  targetSpeed = on ? speed : 0;
+  if (!on) {
+    targetSpeed = 0;
+    currentSpeed = 0;
+    digitalWrite(PIN_MOTOR_CTRL, LOW);
+    ledcWrite(0, 0);
+  }
+  broadcastState();
+}
+
+void processCommand(const char* json) {
   StaticJsonDocument<256> doc;
   if (deserializeJson(doc, json)) return;
   const char* cmd = doc["cmd"];
   if (!cmd) return;
   bool val = doc["value"] | false;
+  uint8_t spd = doc["speed"] | 220;
 
-  if (strcmp(cmd, "POWER") == 0) {
-    statePower = val;
-    stateMotor = val;
-    stateAudio = val;
-    stateLight = val;
-    targetActive = val;
-    targetSpeed = val ? MAX_SPEED : 0;
-    if (val) {
-      sendMp3Command(0x0D, 0);
-      digitalWrite(PIN_LIGHT_CTRL, HIGH);
-    } else {
-      sendMp3Command(0x16, 0);
-      digitalWrite(PIN_LIGHT_CTRL, LOW);
-    }
-  } else if (strcmp(cmd, "MOTOR") == 0) {
-    stateMotor = val;
-    targetActive = val;
-    targetSpeed = val ? MAX_SPEED : 0;
-    statePower = stateMotor || stateAudio || stateLight;
-  } else if (strcmp(cmd, "AUDIO") == 0) {
-    stateAudio = val;
-    if (val) sendMp3Command(0x0D, 0); else sendMp3Command(0x16, 0);
-    statePower = stateMotor || stateAudio || stateLight;
-  } else if (strcmp(cmd, "LIGHT") == 0) {
-    stateLight = val;
-    digitalWrite(PIN_LIGHT_CTRL, val ? HIGH : LOW);
-    statePower = stateMotor || stateAudio || stateLight;
+  if (strcmp(cmd, "POWER") == 0 || strcmp(cmd, "MOTOR") == 0) {
+    setMotorPower(val, spd);
   } else if (strcmp(cmd, "GET_STATE") == 0) {
     broadcastState();
-    return;
   }
-  broadcastState();
-}
-
-void emergencyStop(const char* reason) {
-  statePower = false;
-  stateMotor = false;
-  stateAudio = false;
-  stateLight = false;
-  targetActive = false;
-  targetSpeed = 0;
-  currentSpeed = 0;
-  ledcWrite(0, 0);
-  digitalWrite(PIN_MOTOR_IN1, LOW);
-  digitalWrite(PIN_MOTOR_IN2, LOW);
-  digitalWrite(PIN_LIGHT_CTRL, LOW);
-  sendMp3Command(0x16, 0);
-  broadcastState();
 }
 
 void broadcastState() {
   StaticJsonDocument<256> doc;
   doc["type"] = "state";
   JsonObject p = doc.createNestedObject("payload");
-  p["power"] = statePower;
-  p["motor"] = stateMotor;
+  p["power"] = motorState;
+  p["motor"] = motorState;
   p["speed"] = currentSpeed;
-  p["audio"] = stateAudio;
-  p["light"] = stateLight;
   p["uptime"] = millis() / 1000;
   String out;
   serializeJson(doc, out);
@@ -354,36 +328,20 @@ void broadcastState() {
     pBleStateChar->notify();
   }
 }
-
-void sendMp3Command(uint8_t cmd, uint16_t arg) {
-  uint8_t f[10] = {0x7E, 0xFF, 0x06, cmd, 0x00, (uint8_t)(arg >> 8), (uint8_t)(arg & 0xFF), 0x00, 0x00, 0xEF};
-  uint16_t sum = 0;
-  for (int i = 1; i < 7; i++) sum += f[i];
-  uint16_t cs = -sum;
-  f[7] = (uint8_t)(cs >> 8);
-  f[8] = (uint8_t)(cs & 0xFF);
-  mp3Serial.write(f, 10);
-  mp3Serial.flush();
-}
 `;
-    codeBox.value = sketch;
+
+  if (codeBox) {
+    codeBox.value = esp32SketchSource;
   }
 
-  btnGenerateCode.addEventListener('click', () => {
-    generateEsp32Sketch();
-    copyStatus.textContent = 'Código gerado com sucesso!';
-    setTimeout(() => { copyStatus.textContent = ''; }, 3000);
-  });
-
-  btnCopyCode.addEventListener('click', () => {
-    if (!codeBox.value) generateEsp32Sketch();
-    navigator.clipboard.writeText(codeBox.value).then(() => {
-      copyStatus.textContent = '✅ Copiado!';
-      setTimeout(() => { copyStatus.textContent = ''; }, 3000);
+  if (btnCopyCode) {
+    btnCopyCode.addEventListener('click', () => {
+      navigator.clipboard.writeText(esp32SketchSource).then(() => {
+        copyStatus.textContent = '✅ Código Copiado com Sucesso!';
+        setTimeout(() => { copyStatus.textContent = ''; }, 3500);
+      });
     });
-  });
-
-  generateEsp32Sketch();
+  }
 
   // ========================================================================
   // ELEMENTOS DE CONTROLE (ABA 1)
@@ -410,14 +368,6 @@ void sendMp3Command(uint8_t cmd, uint16_t arg) {
   const realMotor = document.getElementById('real-motor');
   const btnToggleMotor = document.getElementById('btn-toggle-motor');
 
-  const badgeAudio = document.getElementById('badge-audio');
-  const realAudio = document.getElementById('real-audio');
-  const btnToggleAudio = document.getElementById('btn-toggle-audio');
-
-  const badgeLight = document.getElementById('badge-light');
-  const realLight = document.getElementById('real-light');
-  const btnToggleLight = document.getElementById('btn-toggle-light');
-
   const btnVoice = document.getElementById('btn-voice');
   const voiceBtnText = document.getElementById('voice-btn-text');
   const voiceStatus = document.getElementById('voice-status');
@@ -438,12 +388,16 @@ void sendMp3Command(uint8_t cmd, uint16_t arg) {
     textSpan.textContent = ` ${message}`;
     entry.appendChild(timeSpan);
     entry.appendChild(textSpan);
-    eventLog.appendChild(entry);
-    eventLog.scrollTop = eventLog.scrollHeight;
+    if (eventLog) {
+      eventLog.appendChild(entry);
+      eventLog.scrollTop = eventLog.scrollHeight;
+    }
   }
 
   comm.onLog((msg, type) => appendLog(msg, type));
-  btnClearLog.addEventListener('click', () => { eventLog.innerHTML = ''; });
+  if (btnClearLog) {
+    btnClearLog.addEventListener('click', () => { if (eventLog) eventLog.innerHTML = ''; });
+  }
 
   comm.onConnectivityChange(({ channel, isDemo }) => {
     dotEsp.className = 'status-dot dot-offline';
@@ -476,169 +430,96 @@ void sendMp3Command(uint8_t cmd, uint16_t arg) {
   });
 
   // ========================================================================
-  // FUNÇÃO MESTRE UNIVERSAL: APLICA ESTADO NA HORA (CLIQUE E VOZ)
+  // FUNÇÃO MESTRE UNIVERSAL: LIGAR / DESLIGAR O MOTOR NA HORA (CLIQUE E VOZ)
   // ========================================================================
-  function applyPowerState(turnOn) {
-    appendLog(`Comando: ${turnOn ? 'LIGAR GERAL' : 'DESLIGAR GERAL'}`, 'info');
+  function applyMotorPower(turnOn) {
+    appendLog(`Comando: ${turnOn ? 'LIGAR MOTOR' : 'PARAR MOTOR'}`, turnOn ? 'success' : 'warn');
+
+    const targetPwm = Math.round((motorSpeedPercent / 100) * 255);
 
     // 1. Atualiza variáveis internas imediatamente
     comm.hardwareState.power = turnOn;
     comm.hardwareState.motor = turnOn;
-    comm.hardwareState.audio = turnOn;
-    comm.hardwareState.light = turnOn;
-    comm.hardwareState.motorSpeed = turnOn ? 255 : 0;
+    comm.hardwareState.motorSpeed = turnOn ? targetPwm : 0;
 
     // 2. Manipula o DOM DIRETAMENTE no mesmo milissegundo (Zero Delay)
     if (turnOn) {
       btnMaster.className = 'master-button master-on';
       masterTitle.textContent = 'DESLIGAR';
-      masterSub.textContent = 'Toque para parar tudo';
+      masterSub.textContent = 'Toque para parar';
 
       badgeMotor.className = 'comp-state-badge badge-on';
       badgeMotor.textContent = 'EM ROTAÇÃO';
-      realMotor.textContent = 'LIGADO (PWM: 255)';
+      realMotor.textContent = `LIGADO (${motorSpeedPercent}%)`;
       btnToggleMotor.className = 'btn-toggle btn-toggle-on';
       btnToggleMotor.textContent = 'Parar Motor';
-
-      badgeAudio.className = 'comp-state-badge badge-on';
-      badgeAudio.textContent = 'TOCANDO';
-      realAudio.textContent = 'REPRODUZINDO MÚSICA';
-      btnToggleAudio.className = 'btn-toggle btn-toggle-on';
-      btnToggleAudio.textContent = 'Pausar Música';
-
-      badgeLight.className = 'comp-state-badge badge-on';
-      badgeLight.textContent = 'ACESO';
-      realLight.textContent = 'CIRCUITO LIGADO';
-      btnToggleLight.className = 'btn-toggle btn-toggle-on';
-      btnToggleLight.textContent = 'Apagar Iluminação';
     } else {
       btnMaster.className = 'master-button master-off';
-      masterTitle.textContent = 'LIGAR TUDO';
-      masterSub.textContent = 'Toque para acionar';
+      masterTitle.textContent = 'LIGAR MOTOR';
+      masterSub.textContent = 'Toque para girar';
 
       badgeMotor.className = 'comp-state-badge badge-off';
       badgeMotor.textContent = 'PARADO';
       realMotor.textContent = 'DESLIGADO (0%)';
       btnToggleMotor.className = 'btn-toggle btn-toggle-off';
       btnToggleMotor.textContent = 'Ligar Motor';
-
-      badgeAudio.className = 'comp-state-badge badge-off';
-      badgeAudio.textContent = 'MUDO';
-      realAudio.textContent = 'DESLIGADO';
-      btnToggleAudio.className = 'btn-toggle btn-toggle-off';
-      btnToggleAudio.textContent = 'Ligar Música';
-
-      badgeLight.className = 'comp-state-badge badge-off';
-      badgeLight.textContent = 'APAGADO';
-      realLight.textContent = 'DESLIGADO';
-      btnToggleLight.className = 'btn-toggle btn-toggle-off';
-      btnToggleLight.textContent = 'Ligar Iluminação';
     }
 
     // 3. Notifica ouvintes e despacha via Wi-Fi/BLE se conectado
     comm.notifyState();
-    comm.sendMasterPower(turnOn);
+    comm.sendMotor(turnOn, targetPwm);
   }
 
   // Exportação global direta para ser acionada instantaneamente pelo voice.js
-  window.carouselApplyPower = applyPowerState;
+  window.carouselApplyPower = applyMotorPower;
 
   comm.onStateUpdate((state) => {
     // Sincroniza caso venha telemetria externa do ESP32 físico
-    if (state.power) {
+    if (state.motor || state.power) {
       btnMaster.className = 'master-button master-on';
       masterTitle.textContent = 'DESLIGAR';
-      masterSub.textContent = 'Toque para parar tudo';
-    } else {
-      btnMaster.className = 'master-button master-off';
-      masterTitle.textContent = 'LIGAR TUDO';
-      masterSub.textContent = 'Toque para acionar';
-    }
-
-    if (state.motor) {
+      masterSub.textContent = 'Toque para parar';
       badgeMotor.className = 'comp-state-badge badge-on';
       badgeMotor.textContent = 'EM ROTAÇÃO';
-      realMotor.textContent = `LIGADO (PWM: ${state.motorSpeed || 255})`;
+      realMotor.textContent = `LIGADO (${Math.round(((state.motorSpeed || 220) / 255) * 100)}%)`;
       btnToggleMotor.className = 'btn-toggle btn-toggle-on';
       btnToggleMotor.textContent = 'Parar Motor';
     } else {
+      btnMaster.className = 'master-button master-off';
+      masterTitle.textContent = 'LIGAR MOTOR';
+      masterSub.textContent = 'Toque para girar';
       badgeMotor.className = 'comp-state-badge badge-off';
       badgeMotor.textContent = 'PARADO';
       realMotor.textContent = 'DESLIGADO (0%)';
       btnToggleMotor.className = 'btn-toggle btn-toggle-off';
       btnToggleMotor.textContent = 'Ligar Motor';
-    }
-
-    if (state.audio) {
-      badgeAudio.className = 'comp-state-badge badge-on';
-      badgeAudio.textContent = 'TOCANDO';
-      realAudio.textContent = 'REPRODUZINDO MÚSICA';
-      btnToggleAudio.className = 'btn-toggle btn-toggle-on';
-      btnToggleAudio.textContent = 'Pausar Música';
-    } else {
-      badgeAudio.className = 'comp-state-badge badge-off';
-      badgeAudio.textContent = 'MUDO';
-      realAudio.textContent = 'DESLIGADO';
-      btnToggleAudio.className = 'btn-toggle btn-toggle-off';
-      btnToggleAudio.textContent = 'Ligar Música';
-    }
-
-    if (state.light) {
-      badgeLight.className = 'comp-state-badge badge-on';
-      badgeLight.textContent = 'ACESO';
-      realLight.textContent = 'CIRCUITO LIGADO';
-      btnToggleLight.className = 'btn-toggle btn-toggle-on';
-      btnToggleLight.textContent = 'Apagar Iluminação';
-    } else {
-      badgeLight.className = 'comp-state-badge badge-off';
-      badgeLight.textContent = 'APAGADO';
-      realLight.textContent = 'DESLIGADO';
-      btnToggleLight.className = 'btn-toggle btn-toggle-off';
-      btnToggleLight.textContent = 'Ligar Iluminação';
     }
   });
 
   // Clique no Botão Mestre
   btnMaster.addEventListener('click', () => {
-    applyPowerState(!comm.hardwareState.power);
+    applyMotorPower(!comm.hardwareState.power);
   });
 
-  btnToggleMotor.addEventListener('click', async () => {
-    const next = !comm.hardwareState.motor;
-    comm.hardwareState.motor = next;
-    comm.hardwareState.motorSpeed = next ? 255 : 0;
-    comm.updateDemoPowerState();
-    comm.notifyState();
-    await comm.sendMotor(next);
+  // Clique no Botão Alternativo do Motor
+  btnToggleMotor.addEventListener('click', () => {
+    applyMotorPower(!comm.hardwareState.motor);
   });
 
-  btnToggleAudio.addEventListener('click', async () => {
-    const next = !comm.hardwareState.audio;
-    comm.hardwareState.audio = next;
-    comm.updateDemoPowerState();
-    comm.notifyState();
-    await comm.sendAudio(next);
-  });
-
-  btnToggleLight.addEventListener('click', async () => {
-    const next = !comm.hardwareState.light;
-    comm.hardwareState.light = next;
-    comm.updateDemoPowerState();
-    comm.notifyState();
-    await comm.sendLight(next);
-  });
-
+  // Conexão Wi-Fi
   btnConnectWifi.addEventListener('click', async () => {
     const ip = inputIp.value.trim() || '192.168.4.1';
     connFeedback.textContent = `Conectando Wi-Fi em ${ip}...`;
     await comm.connectWifi(ip);
   });
 
+  // Conexão Bluetooth BLE
   btnConnectBle.addEventListener('click', async () => {
     connFeedback.textContent = 'Abrindo pareamento Bluetooth BLE...';
     await comm.connectBLE();
   });
 
+  // Modo Demo
   btnToggleDemo.addEventListener('click', () => {
     if (comm.isDemoMode) {
       comm.disconnectAll();
@@ -666,20 +547,19 @@ void sendMp3Command(uint8_t cmd, uint16_t arg) {
 
   // RESPOSTA IMEDIATA AO COMANDO DE VOZ
   voice.onCommand((cmdResult) => {
-    // Trata explicitamente POWER_OFF e POWER_ON
     const isDesligar = cmdResult.command === 'POWER_OFF' ||
                        cmdResult.action === 'POWER_OFF' ||
                        cmdResult.value === false;
 
     const isPowerOn = !isDesligar;
 
-    voiceTranscript.textContent = `Reconhecido: "${cmdResult.raw}" -> ${isPowerOn ? 'LIGADO' : 'DESLIGADO'}`;
-    appendLog(`Comando de Voz: ${isPowerOn ? 'LIGAR TUDO (POWER_ON)' : 'DESLIGAR TUDO (POWER_OFF)'}`, 'success');
+    voiceTranscript.textContent = `Reconhecido: "${cmdResult.raw}" ➔ ${isPowerOn ? 'LIGADO' : 'DESLIGADO'}`;
+    appendLog(`Voz: ${isPowerOn ? 'LIGAR MOTOR' : 'DESLIGAR MOTOR'}`, isPowerOn ? 'success' : 'warn');
 
-    // Executa a ação mestre unificada NA HORA (Zero delay)
-    applyPowerState(isPowerOn);
+    // Executa a ação do motor NA HORA (Zero delay)
+    applyMotorPower(isPowerOn);
   });
 
-  appendLog('Painel de Controle Carrossel MAKER inicializado.', 'info');
-  appendLog('Segurança infantil: Saídas desligadas. Pronto para pareamento.', 'info');
+  appendLog('Painel Carrossel MAKER (Motor Simples) pronto!', 'info');
+  appendLog('Segurança: Motor inicia desligado por padrão.', 'info');
 });

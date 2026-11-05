@@ -3,11 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Carrossel MAKER • Controle e Configurador</title>
+  <title>Carrossel MAKER • Controle do Motor & Guias</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="styles.css?v=4.0" />
 </head>
 <body>
   <div class="app-wrapper">
@@ -17,7 +17,7 @@
         <div class="brand-icon">🎠</div>
         <div>
           <h1>Carrossel MAKER</h1>
-          <p class="subtitle">Controle & Integração Inteligente ESP32</p>
+          <p class="subtitle">Controle Inteligente do Motor • ESP32</p>
         </div>
       </div>
 
@@ -42,12 +42,12 @@
         </div>
       </div>
 
-      <!-- Aviso Explicito de Modo Demonstracao -->
+      <!-- Aviso de Modo Demonstracao -->
       <div class="demo-banner hidden" id="demo-banner">
-        <span class="demo-icon">⚠️</span>
+        <span class="demo-icon">🧪</span>
         <div class="demo-text">
           <strong>MODO DEMONSTRAÇÃO ATIVO</strong>
-          <small>Hardware físico não conectado. As respostas de estado são simuladas no navegador.</small>
+          <small>Respostas simuladas na tela para você testar antes de conectar o ESP32 real.</small>
         </div>
       </div>
     </header>
@@ -60,20 +60,26 @@
       <button class="tab-btn" id="tab-btn-schematics" data-tab="tab-schematics" role="tab">
         <span class="tab-icon">📐</span> Esquema
       </button>
+      <button class="tab-btn" id="tab-btn-prog" data-tab="tab-prog" role="tab">
+        <span class="tab-icon">💻</span> Como Gravar ESP32
+      </button>
+      <button class="tab-btn" id="tab-btn-connect" data-tab="tab-connect" role="tab">
+        <span class="tab-icon">📲</span> Como Conectar
+      </button>
       <button class="tab-btn" id="tab-btn-config" data-tab="tab-config" role="tab">
-        <span class="tab-icon">⚙️</span> Configurações
+        <span class="tab-icon">⚡</span> Código Arduino
       </button>
     </nav>
 
     <!-- ==================================================================== -->
-    <!-- ABA 1: CONTROLE DO CARROSSEL                                         -->
+    <!-- ABA 1: CONTROLE DO MOTOR                                             -->
     <!-- ==================================================================== -->
     <main class="tab-pane active" id="tab-control" role="tabpanel">
       <!-- Painel de Conexão Rápida -->
       <section class="conn-actions-card">
         <div class="input-group">
           <label for="input-esp-ip">IP do ESP32 na rede Wi-Fi:</label>
-          <input type="text" id="input-esp-ip" placeholder="Ex: 192.168.4.1 ou 192.168.1.150" value="192.168.4.1" />
+          <input type="text" id="input-esp-ip" placeholder="Ex: 192.168.4.1" value="192.168.4.1" />
         </div>
         <div class="conn-buttons">
           <button id="btn-connect-wifi" class="btn-action btn-wifi">
@@ -86,21 +92,21 @@
             <span class="btn-icon">🧪</span> Modo Demo
           </button>
         </div>
-        <div id="conn-feedback" class="conn-feedback">Pronto para conectar ao hardware.</div>
+        <div id="conn-feedback" class="conn-feedback">Pronto para conectar ao carrossel.</div>
       </section>
 
-      <!-- Botão Mestre Geral (LIGAR / DESLIGAR) -->
+      <!-- Botão Mestre Geral do Motor (LIGAR / DESLIGAR) -->
       <section class="master-control-section">
         <div class="master-btn-container">
-          <button id="btn-master" class="master-button master-off" aria-label="Ligar ou Desligar Carrossel Geral">
+          <button id="btn-master" class="master-button master-off" aria-label="Ligar ou Parar Motor do Carrossel">
             <div class="master-inner-ring">
               <div class="master-power-icon">⏻</div>
-              <div class="master-title" id="master-title">LIGAR TUDO</div>
-              <div class="master-sub" id="master-sub">Toque para acionar</div>
+              <div class="master-title" id="master-title">LIGAR MOTOR</div>
+              <div class="master-sub" id="master-sub">Toque para girar</div>
             </div>
           </button>
         </div>
-        <p class="master-hint">Sequência segura: inicia motor com rampa, áudio e pisca-pisca. O desligamento freia o motor antes de cortar energia.</p>
+        <p class="master-hint">Giro do carrossel com rampa suave de aceleração e freio automático de segurança.</p>
       </section>
 
       <!-- Seção de Comando de Voz -->
@@ -111,76 +117,45 @@
             <span class="voice-btn-text" id="voice-btn-text">Comando de Voz</span>
           </button>
           <div class="voice-info">
-            <div class="voice-status" id="voice-status">Microfone em espera (Web Speech pt-BR)</div>
-            <div class="voice-transcript" id="voice-transcript">Fale "Ligar" ou "Desligar"</div>
+            <div class="voice-status" id="voice-status">Microfone em espera (Toque para falar)</div>
+            <div class="voice-transcript" id="voice-transcript">Diga <strong>"Ligar"</strong> para rodar ou <strong>"Desligar"</strong> para parar</div>
           </div>
         </div>
       </section>
 
-      <!-- Controles Individuais e Telemetria Real -->
+      <!-- Card de Status do Motor & Ajuste de Velocidade -->
       <section class="components-grid">
-        <h2 class="section-title">Controles Individuais e Estado Real</h2>
+        <h2 class="section-title">Status do Motor & Velocidade</h2>
 
-        <!-- Card do Motor -->
         <div class="component-card" id="card-motor">
           <div class="comp-header">
             <div class="comp-icon-box motor-color">⚙️</div>
             <div class="comp-info">
-              <h3>Motor Principal</h3>
+              <h3>Motor do Carrossel</h3>
               <span class="comp-state-badge badge-off" id="badge-motor">PARADO</span>
             </div>
           </div>
+
           <div class="comp-body">
-            <p class="comp-desc">Movimento de rotação do carrossel com rampa segura de aceleração.</p>
             <div class="comp-real-state">
-              <span class="telemetry-label">Status real ESP32:</span>
+              <span class="telemetry-label">Estado do Motor:</span>
               <span class="telemetry-value" id="real-motor">DESLIGADO (0%)</span>
             </div>
+
+            <!-- Ajuste Rápido de Velocidade do Motor -->
+            <div class="speed-control-box">
+              <label for="motor-speed-slider">Velocidade de Rotação: <span id="speed-display">85%</span></label>
+              <input type="range" id="motor-speed-slider" min="30" max="100" value="85" step="5" />
+              <div class="speed-presets">
+                <button type="button" class="btn-preset" data-speed="50">Suave (50%)</button>
+                <button type="button" class="btn-preset active" data-speed="85">Normal (85%)</button>
+                <button type="button" class="btn-preset" data-speed="100">Máxima (100%)</button>
+              </div>
+            </div>
           </div>
+
           <div class="comp-footer">
             <button id="btn-toggle-motor" class="btn-toggle btn-toggle-off">Ligar Motor</button>
-          </div>
-        </div>
-
-        <!-- Card do Áudio / Música -->
-        <div class="component-card" id="card-audio">
-          <div class="comp-header">
-            <div class="comp-icon-box audio-color">🎵</div>
-            <div class="comp-info">
-              <h3>Módulo de Música</h3>
-              <span class="comp-state-badge badge-off" id="badge-audio">MUDO</span>
-            </div>
-          </div>
-          <div class="comp-body">
-            <p class="comp-desc">Trilha sonora infantil via cartão SD (DFPlayer Mini).</p>
-            <div class="comp-real-state">
-              <span class="telemetry-label">Status real ESP32:</span>
-              <span class="telemetry-value" id="real-audio">DESLIGADO</span>
-            </div>
-          </div>
-          <div class="comp-footer">
-            <button id="btn-toggle-audio" class="btn-toggle btn-toggle-off">Ligar Música</button>
-          </div>
-        </div>
-
-        <!-- Card do Pisca-Pisca de Natal -->
-        <div class="component-card" id="card-light">
-          <div class="comp-header">
-            <div class="comp-icon-box light-color">✨</div>
-            <div class="comp-info">
-              <h3>Pisca-Pisca Colorido</h3>
-              <span class="comp-state-badge badge-off" id="badge-light">APAGADO</span>
-            </div>
-          </div>
-          <div class="comp-body">
-            <p class="comp-desc">Iluminação de Natal preservando os efeitos da caixinha original.</p>
-            <div class="comp-real-state">
-              <span class="telemetry-label">Status real ESP32:</span>
-              <span class="telemetry-value" id="real-light">DESLIGADO</span>
-            </div>
-          </div>
-          <div class="comp-footer">
-            <button id="btn-toggle-light" class="btn-toggle btn-toggle-off">Ligar Iluminação</button>
           </div>
         </div>
       </section>
@@ -188,7 +163,7 @@
       <!-- Console de Eventos, Diagnóstico e Segurança -->
       <section class="diagnostics-card">
         <div class="diag-header">
-          <h3>Diagnóstico & Segurança</h3>
+          <h3>Diagnóstico do Sistema</h3>
           <button id="btn-clear-log" class="btn-clear">Limpar</button>
         </div>
         <div id="event-log" class="event-log" role="log" aria-live="polite"></div>
@@ -196,196 +171,274 @@
     </main>
 
     <!-- ==================================================================== -->
-    <!-- ABA 2: ESQUEMA COMPLETO DE LIGAÇÃO & MONTAGEM                        -->
+    <!-- ABA 2: ESQUEMA COMPLETO DO MOTOR                                     -->
     <!-- ==================================================================== -->
     <section class="tab-pane" id="tab-schematics" role="tabpanel">
       <div class="schematic-card">
-        <h2>Esquema Elétrico e Montagem Completa</h2>
+        <h2>Esquema Elétrico: Apenas Motor + ESP32</h2>
         <p class="schematic-intro">
-          Veja a ligação exata de cada um dos 4 componentes principais com o ESP32 convencional.
+          Como o projeto foi simplificado para <strong>apenas o motor</strong>, veja exatamente como ligar sem risco de queimar o ESP32.
         </p>
 
-        <!-- Seletor de Alimentação Interativo -->
+        <!-- Alerta Vermelho Crítico -->
+        <div class="warning-banner-crit">
+          🚨 <strong>REGRA FUNDAMENTAL DE ELETRÔNICA:</strong><br>
+          <strong>NUNCA ligue os fios do motor diretamente nos pinos (GPIOs) do ESP32!</strong><br>
+          O pino do ESP32 só aguenta 12mA. O motorzinho elétrico puxa entre 200mA e 1000mA. Ligue sempre através de um <strong>Módulo Relé</strong> ou <strong>Módulo Transistor/MOSFET</strong>!
+        </div>
+
+        <!-- Seletor das 2 Formas Mais Fáceis de Ligar -->
+        <div class="circuit-switch-box">
+          <label><strong>Escolha o componente que você tem em mãos:</strong></label>
+          <div class="circuit-options">
+            <button class="btn-circuit-opt active" data-circuit="relay">
+              🔌 Opção 1: Módulo Relé (Mais Fácil de Todos)
+            </button>
+            <button class="btn-circuit-opt" data-circuit="mosfet">
+              ⚡ Opção 2: Módulo Transistor/MOSFET (Com Velocidade)
+            </button>
+          </div>
+        </div>
+
+        <!-- Detalhe do Circuito com Relé -->
+        <div id="circuit-detail-relay" class="circuit-detail-box">
+          <h3>Ligação com Módulo Relé de 1 Canal (Recomendado pela simplicidade)</h3>
+          <p>O relé funciona como um interruptor liga/desliga acionado pelo ESP32 com isolamento total.</p>
+          <div class="wiring-steps-list">
+            <div class="step-item">
+              <span class="step-num">1</span>
+              <div>
+                <strong>Ligar o Relé no ESP32:</strong>
+                <ul>
+                  <li>Pino <strong>VCC (ou DC+)</strong> do Relé ➔ Pino <strong>VIN (5V)</strong> do ESP32</li>
+                  <li>Pino <strong>GND (ou DC-)</strong> do Relé ➔ Pino <strong>GND</strong> do ESP32</li>
+                  <li>Pino <strong>IN</strong> do Relé ➔ Pino <strong>GPIO 25</strong> do ESP32</li>
+                </ul>
+              </div>
+            </div>
+            <div class="step-item">
+              <span class="step-num">2</span>
+              <div>
+                <strong>Ligar o Motor e a Bateria no Relé:</strong>
+                <ul>
+                  <li>Polo <strong>Positivo (+)</strong> da Bateria/Fonte ➔ Terminal <strong>COM (Comum)</strong> do Relé</li>
+                  <li>Terminal <strong>NA (Normalmente Aberto)</strong> do Relé ➔ Fio Positivo do Motor</li>
+                  <li>Fio Negativo do Motor ➔ Polo <strong>Negativo (-)</strong> da Bateria/Fonte</li>
+                  <li>Polo <strong>Negativo (-)</strong> da Bateria/Fonte ➔ Conecte também no <strong>GND</strong> do ESP32 (GND Comum)</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Detalhe do Circuito com Transistor/MOSFET -->
+        <div id="circuit-detail-mosfet" class="circuit-detail-box hidden">
+          <h3>Ligação com Módulo Transistor / MOSFET (Permite Velocidade Suave)</h3>
+          <p>Usando um transistor NPN (TIP120) ou módulo MOSFET (IRLZ44N), você controla tanto o liga/desliga quanto a velocidade de rotação.</p>
+          <div class="wiring-steps-list">
+            <div class="step-item">
+              <span class="step-num">1</span>
+              <div>
+                <strong>Pinos de Controle:</strong>
+                <ul>
+                  <li>Pino <strong>SIG / Gate / Base</strong> ➔ Pino <strong>GPIO 25</strong> do ESP32 (com resistor de 220Ω a 1kΩ)</li>
+                  <li>Pino <strong>GND</strong> do Módulo ➔ Pino <strong>GND</strong> do ESP32</li>
+                </ul>
+              </div>
+            </div>
+            <div class="step-item">
+              <span class="step-num">2</span>
+              <div>
+                <strong>Alimentação do Motor:</strong>
+                <ul>
+                  <li>Fio Positivo do Motor ➔ Polo <strong>Positivo (+)</strong> da sua bateria (4.5V a 6V)</li>
+                  <li>Fio Negativo do Motor ➔ Terminal <strong>Dreno (D) / Coletor</strong> do Transistor</li>
+                  <li>Dica: Coloque um diodo comum (1N4007) invertido entre os dois polos do motor para evitar faíscas que resetem o ESP32!</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alimentação: Pilhas vs Fonte -->
         <div class="power-selector-box">
-          <label><strong>Como você vai alimentar o Carrossel?</strong></label>
-          <div class="power-options">
-            <button class="btn-power-opt active" data-power="battery">
-              🔋 Pilhas / Baterias (Portátil)
-            </button>
-            <button class="btn-power-opt" data-power="powersupply">
-              🔌 Fonte de Tomada (Recomendado)
-            </button>
+          <h3>🔋 Como Alimentar o Carrossel?</h3>
+          <div class="power-cards-grid">
+            <div class="p-card">
+              <h4>Opção 1: Pilhas ou Baterias (Portátil)</h4>
+              <p>• <strong>Suporte para 4 Pilhas AA (6V):</strong> Ligue o positivo das pilhas no motor e o negativo no GND comum.</p>
+              <p>• <strong>Power Bank de Celular (5V):</strong> Ligue um cabo micro-USB direto no ESP32. Se o motor for de 5V, ele pode usar a mesma energia pelo pino VIN!</p>
+              <p class="p-warn">⚠️ <em>Evite bateria quadrada de 9V: ela não tem corrente para motores e acaba em 5 minutos.</em></p>
+            </div>
+            <div class="p-card">
+              <h4>Opção 2: Fonte de Celular na Tomada (Mais Estável)</h4>
+              <p>• Use uma <strong>fonte de carregador de celular (5V / 2A)</strong> com cabo USB conectado no ESP32.</p>
+              <p>• Você pode puxar os 5V do pino VIN do ESP32 para alimentar o motorzinho simples sem precisar de pilhas.</p>
+              <p>• Ideal para testes na bancada ou feiras escolares.</p>
+            </div>
           </div>
-          <div id="power-advice" class="power-advice">
-            <!-- Texto dinâmico inserido via JS -->
-          </div>
-        </div>
-
-        <!-- Diagrama Visual dos 4 Componentes -->
-        <div class="wiring-diagram">
-          <!-- Bloco ESP32 -->
-          <div class="diagram-block block-esp32">
-            <div class="block-title">🧠 ESP32 (Convencional - 38 pinos)</div>
-            <div class="pin-wire"><span class="pin-badge">VIN (5V)</span> <span class="wire-line wire-red"></span> Alimentação +5V</div>
-            <div class="pin-wire"><span class="pin-badge">GND</span> <span class="wire-line wire-black"></span> Terra Comum (Interligar todos os GNDs)</div>
-            <div class="pin-wire"><span class="pin-badge">GPIO 25</span> <span class="wire-line wire-orange"></span> Driver Motor IN1 (Sentido)</div>
-            <div class="pin-wire"><span class="pin-badge">GPIO 26</span> <span class="wire-line wire-orange"></span> Driver Motor IN2 (Sentido)</div>
-            <div class="pin-wire"><span class="pin-badge">GPIO 27</span> <span class="wire-line wire-yellow"></span> Driver Motor PWM / ENA (Velocidade)</div>
-            <div class="pin-wire"><span class="pin-badge">GPIO 17 (TX2)</span> <span class="wire-line wire-blue"></span> DFPlayer RX (via Resistor 1kΩ)</div>
-            <div class="pin-wire"><span class="pin-badge">GPIO 16 (RX2)</span> <span class="wire-line wire-cyan"></span> DFPlayer TX</div>
-            <div class="pin-wire"><span class="pin-badge">GPIO 33</span> <span class="wire-line wire-green"></span> Controle do Pisca-Pisca (Gate/IN)</div>
-            <div class="pin-wire"><span class="pin-badge">GPIO 14</span> <span class="wire-line wire-purple"></span> Botão Físico de Emergência (GND)</div>
-          </div>
-
-          <!-- Bloco Motor -->
-          <div class="diagram-block block-motor">
-            <div class="block-title">⚙️ Motor DC + Driver Ponte H (TB6612 ou L298N)</div>
-            <p class="block-note">⚠️ <strong>NUNCA ligue o motor direto no ESP32!</strong> Use o driver intermediário.</p>
-            <ul>
-              <li><strong>Alimentação Motor (VM / VCC2):</strong> Conecte ao polo positivo da sua bateria ou fonte.</li>
-              <li><strong>GND:</strong> Interligado ao GND do ESP32.</li>
-              <li><strong>IN1, IN2, PWM:</strong> Ligados aos GPIOs 25, 26 e 27.</li>
-              <li><strong>OUT1 e OUT2:</strong> Ligados aos dois fios do motor DC (com capacitor cerâmico 100nF soldado entre os bornes).</li>
-            </ul>
-          </div>
-
-          <!-- Bloco Áudio -->
-          <div class="diagram-block block-audio">
-            <div class="block-title">🎵 Módulo de Som (DFPlayer Mini) + Alto-Falante</div>
-            <ul>
-              <li><strong>VCC:</strong> Pino 5V da fonte/bateria regulada.</li>
-              <li><strong>GND:</strong> Terra comum.</li>
-              <li><strong>RX:</strong> Conectado ao GPIO 17 do ESP32 <em>com um resistor de 1kΩ em série</em> (protege contra ruídos).</li>
-              <li><strong>TX:</strong> Conectado ao GPIO 16 do ESP32.</li>
-              <li><strong>SPK1 e SPK2:</strong> Ligados diretamente aos 2 fios do alto-falante (3W / 4Ω ou 8Ω).</li>
-              <li><strong>Cartão MicroSD:</strong> Formatado em FAT32 com músicas na pasta <code>/mp3/0001.mp3</code>.</li>
-            </ul>
-          </div>
-
-          <!-- Bloco Pisca-Pisca -->
-          <div class="diagram-block block-light">
-            <div class="block-title">✨ Pisca-Pisca de Natal Colorido</div>
-            <p class="block-note">💡 A caixinha controladora original com os efeitos natalinos <strong>é mantida</strong>.</p>
-            <ul>
-              <li><strong>Se o pisca for USB ou Pilhas (5V/4.5V DC):</strong> O GPIO 33 chaveia um transistor MOSFET de nível lógico (ex: IRLZ44N) na linha negativa da caixinha.</li>
-              <li><strong>Se o pisca for de tomada (127/220V AC):</strong> O GPIO 33 aciona um Módulo Relé optoisolado de 5V. A alta tensão fica trancada em gabinete isolado.</li>
-              <li>Ao ligar pelo site, o circuito recebe energia e acende no modo memorizado.</li>
-            </ul>
-          </div>
-        </div>
-
-        <!-- Dica de Engenharia -->
-        <div class="schematic-footer-tip">
-          <strong>Regra Essencial do GND Comum:</strong> Todos os fios pretos (GND) da fonte/bateria, do ESP32, do driver de motor, do DFPlayer e do módulo do pisca-pisca devem estar conectados juntos no mesmo ponto de terra para que os sinais funcionem corretamente.
         </div>
       </div>
     </section>
 
     <!-- ==================================================================== -->
-    <!-- ABA 3: CONFIGURAÇÕES & GERADOR DE FIRMWARE SEM CÓDIGO (NO-CODE)      -->
+    <!-- ABA 3: TUTORIAL - COMO GRAVAR O ESP32 NO COMPUTADOR                  -->
+    <!-- ==================================================================== -->
+    <section class="tab-pane" id="tab-prog" role="tabpanel">
+      <div class="guide-card">
+        <h2>Tutorial: Como Gravar o ESP32 no PC (Sem Stress!)</h2>
+        <p class="guide-intro">
+          Gravar o ESP32 pela primeira vez pode ser chato por causa de drivers e portas COM. Siga este passo a passo à prova de erros:
+        </p>
+
+        <div class="guide-steps">
+          <!-- Passo 1 -->
+          <div class="guide-step">
+            <div class="step-badge">Passo 1</div>
+            <div class="step-content">
+              <h3>Atenção ao Cabo USB (A Maior Pegadinha!)</h3>
+              <p>Muitos cabos USB que vêm em caixinhas de fone ou brinquedos <strong>só servem para carregar bateria e NÃO passam dados</strong>.</p>
+              <p>👉 Certifique-se de usar um cabo USB de boa qualidade que passe dados (como o cabo que você usa para passar fotos do celular pro computador).</p>
+            </div>
+          </div>
+
+          <!-- Passo 2 -->
+          <div class="guide-step">
+            <div class="step-badge">Passo 2</div>
+            <div class="step-content">
+              <h3>Instalar o Driver USB no Windows (CH340 ou CP2102)</h3>
+              <p>Quando você conecta o ESP32 na USB, o Windows precisa de um programinha (driver) para criar a <strong>Porta COM</strong>:</p>
+              <ul>
+                <li>Se a sua plaquinha ESP32 tem um chip quadradinho perto da USB escrito <strong>CH340</strong> ou <strong>CH340G</strong>: instale o <a href="https://www.wch-ic.com/downloads/CH341SER_EXE.html" target="_blank" rel="noopener">Driver CH340 Oficial</a>.</li>
+                <li>Se o chip for o <strong>CP2102</strong> (Silicon Labs): instale o <a href="https://www.silabs.com/developers/usb-to-uart-bridge-vcp-drivers" target="_blank" rel="noopener">Driver CP2102 Oficial</a>.</li>
+              </ul>
+              <p>💡 <em>Como saber se deu certo?</em> Abra o <strong>Gerenciador de Dispositivos</strong> do Windows e veja se em <strong>Portas (COM e LPT)</strong> aparece algo como <code>Silicon Labs CP210x (COM3)</code> ou <code>USB-SERIAL CH340 (COM4)</code> sem triângulo amarelo.</p>
+            </div>
+          </div>
+
+          <!-- Passo 3 -->
+          <div class="guide-step">
+            <div class="step-badge">Passo 3</div>
+            <div class="step-content">
+              <h3>Configurar a Arduino IDE</h3>
+              <ol>
+                <li>Abra a <strong>Arduino IDE</strong> no computador.</li>
+                <li>Vá em <strong>Arquivo ➔ Preferências</strong>.</li>
+                <li>No campo <em>"URLs do Gerenciador de Placas Adicionais"</em>, cole o link oficial da Espressif:<br>
+                  <code class="code-inline">https://raw.githubusercontent.com/espressif/arduino-esp32/gh-pages/package_esp32_index.json</code>
+                </li>
+                <li>Clique em <strong>OK</strong>.</li>
+                <li>Agora vá em <strong>Ferramentas ➔ Placa ➔ Gerenciador de Placas</strong>, pesquise por <strong>esp32</strong> e clique em <strong>Instalar</strong>.</li>
+                <li>Instale também as bibliotecas no menu <strong>Ferramentas ➔ Gerenciar Bibliotecas</strong>:<br>
+                  - <strong>ArduinoJson</strong> (versão 6.x)<br>
+                  - <strong>WebSockets</strong> (por Markus Sattler)
+                </li>
+              </ol>
+            </div>
+          </div>
+
+          <!-- Passo 4 -->
+          <div class="guide-step highlight-step">
+            <div class="step-badge">Passo 4</div>
+            <div class="step-content">
+              <h3>O Pulo do Gato: Erro "Failed to connect to ESP32: Timed out"</h3>
+              <p>Muitas placas ESP32 têm um capacitor que não entra no modo de gravação sozinho. Quando você clica na setinha de Carregar, o programa compila e começa a mostrar:</p>
+              <pre class="terminal-box">Connecting........_____....._____.....</pre>
+              <p>👉 <strong>O que fazer se aparecer isso:</strong><br>
+              Na placa ESP32 existem dois botõezinhos pretos: um escrito <strong>EN (ou RST)</strong> e outro escrito <strong>BOOT (ou IO0)</strong>.<br>
+              Assim que o computador começar a mostrar <code>Connecting........</code>, <strong>aperte e segure o botão BOOT por 2 segundos e solte</strong>. A gravação começará imediatamente (mostrando <code>Writing at 0x00010000... (100%)</code>). Pronto!</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================================================================== -->
+    <!-- ABA 4: TUTORIAL - COMO CONECTAR O CARROSSEL COM O SITE               -->
+    <!-- ==================================================================== -->
+    <section class="tab-pane" id="tab-connect" role="tabpanel">
+      <div class="guide-card">
+        <h2>Tutorial: Como Conectar o Carrossel com o Site</h2>
+        <p class="guide-intro">
+          Você tem duas formas muito fáceis de controlar o carrossel pelo celular ou computador:
+        </p>
+
+        <div class="guide-steps">
+          <!-- Método 1: Wi-Fi -->
+          <div class="guide-step">
+            <div class="step-badge">Opção 1</div>
+            <div class="step-content">
+              <h3>Conexão Direta por Wi-Fi (Não precisa de internet de casa!)</h3>
+              <p>O próprio ESP32 cria sua própria rede Wi-Fi como se fosse um mini-roteador portátil:</p>
+              <ol>
+                <li>Ligue o ESP32 na bateria ou no carregador de celular.</li>
+                <li>No seu celular, abra as <strong>Configurações de Wi-Fi</strong>.</li>
+                <li>Procure a rede chamada: <strong><code>Carrossel_Maker_ESP32</code></strong>.</li>
+                <li>Digite a senha: <strong><code>carrossel123</code></strong> e conecte.</li>
+                <li>Se o celular avisar <em>"Rede sem internet, deseja continuar conectado?"</em>, toque em <strong>SIM</strong>.</li>
+                <li>Agora abra o site do carrossel (ou digite o IP <strong>192.168.4.1</strong>) e toque em <strong>"Conectar Wi-Fi"</strong>.</li>
+                <li>A bolinha do Wi-Fi e do ESP32 ficarão verdes e você já pode controlar!</li>
+              </ol>
+            </div>
+          </div>
+
+          <!-- Método 2: Bluetooth BLE -->
+          <div class="guide-step">
+            <div class="step-badge">Opção 2</div>
+            <div class="step-content">
+              <h3>Conexão por Bluetooth BLE (Sem sair da internet)</h3>
+              <p>Ideal se você quiser usar os dados móveis (4G/5G) no celular enquanto controla o brinquedo:</p>
+              <ol>
+                <li>Ligue o <strong>Bluetooth</strong> do seu celular.</li>
+                <li>Abra este site no navegador <strong>Google Chrome</strong> (Android ou PC).</li>
+                <li>Clique no botão <strong>⚡ Conectar BLE</strong> no painel.</li>
+                <li>Uma janelinha vai abrir mostrando os aparelhos próximos. Selecione <strong>Carrossel_Maker_BLE</strong> e clique em <strong>Parear</strong>.</li>
+                <li>Pronto! Conectado instantaneamente sem precisar mexer no Wi-Fi.</li>
+              </ol>
+            </div>
+          </div>
+
+          <!-- Método 3: Modo Demo -->
+          <div class="guide-step">
+            <div class="step-badge">Opção 3</div>
+            <div class="step-content">
+              <h3>Modo Demonstração (Para Testar Antes de Montar)</h3>
+              <p>Quer ver como o botão mestre e o microfone respondem na tela mesmo sem o ESP32 por perto?</p>
+              <p>Basta tocar no botão <strong>🧪 Modo Demo</strong>. O sistema simula as respostas na tela para você testar a fala e os botões à vontade!</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================================================================== -->
+    <!-- ABA 5: GERADOR DE CÓDIGO ARDUINO (SIMPLES, 100% FUNCIONAL)          -->
     <!-- ==================================================================== -->
     <section class="tab-pane" id="tab-config" role="tabpanel">
       <div class="config-card">
-        <h2>Configurador do Carrossel & Gerador ESP32</h2>
+        <h2>Código Completo para o ESP32 (Arduino IDE)</h2>
         <p class="config-intro">
-          Personalize tudo aqui <strong>sem precisar programar</strong>. As alterações geram o código pronto para você colar na Arduino IDE ou gravar no ESP32!
+          Este é o código exclusivo para <strong>ligar e desligar o motor</strong> pelo site e por voz. Basta clicar no botão de copiar, colar na Arduino IDE e gravar no ESP32!
         </p>
 
-        <!-- Formulário de Pré-Configurações -->
-        <form id="form-generator" class="config-form" onsubmit="return false;">
-          <!-- Seção de Rede -->
-          <fieldset class="config-group">
-            <legend>📡 Conectividade do ESP32</legend>
-            <div class="form-row">
-              <div class="form-field">
-                <label for="cfg-wifi-ssid">Nome da Rede Wi-Fi (SSID):</label>
-                <input type="text" id="cfg-wifi-ssid" value="Carrossel_Maker_ESP32" />
-              </div>
-              <div class="form-field">
-                <label for="cfg-wifi-pass">Senha do Wi-Fi:</label>
-                <input type="text" id="cfg-wifi-pass" value="carrossel123" />
-              </div>
-            </div>
-            <div class="form-field">
-              <label for="cfg-ble-name">Nome do Bluetooth BLE:</label>
-              <input type="text" id="cfg-ble-name" value="Carrossel_Maker_BLE" />
-            </div>
-          </fieldset>
-
-          <!-- Seção do Motor -->
-          <fieldset class="config-group">
-            <legend>⚙️ Movimento do Motor</legend>
-            <div class="form-row">
-              <div class="form-field">
-                <label for="cfg-motor-speed">Velocidade Máxima de Rotação:</label>
-                <select id="cfg-motor-speed">
-                  <option value="180">Suave / Lenta (Ideal para crianças pequenas)</option>
-                  <option value="220" selected>Média / Padrão (Recomendada)</option>
-                  <option value="255">Máxima (100% de potência)</option>
-                </select>
-              </div>
-              <div class="form-field">
-                <label for="cfg-ramp-speed">Rampa de Aceleração (Soft-Start):</label>
-                <select id="cfg-ramp-speed">
-                  <option value="slow">Muito Suave (2.5 segundos até embalar)</option>
-                  <option value="normal" selected>Normal (1.5 segundos)</option>
-                  <option value="fast">Rápida (0.8 segundos)</option>
-                </select>
-              </div>
-            </div>
-          </fieldset>
-
-          <!-- Seção de Áudio e Luz -->
-          <fieldset class="config-group">
-            <legend>🎵 Som e Iluminação</legend>
-            <div class="form-row">
-              <div class="form-field">
-                <label for="cfg-audio-vol">Volume Inicial da Música (0 a 30):</label>
-                <input type="number" id="cfg-audio-vol" min="5" max="30" value="22" />
-              </div>
-              <div class="form-field">
-                <label for="cfg-light-type">Alimentação do Pisca-Pisca:</label>
-                <select id="cfg-light-type">
-                  <option value="dc_mosfet" selected>Baixa Tensão DC (Pilhas / USB 5V - MOSFET)</option>
-                  <option value="ac_relay">Rede Elétrica 127/220V AC (Módulo Relé Isolado)</option>
-                </select>
-              </div>
-            </div>
-          </fieldset>
-
-          <!-- Seção de Segurança -->
-          <fieldset class="config-group">
-            <legend>🛡️ Segurança Infantil</legend>
-            <div class="form-field">
-              <label for="cfg-watchdog">Tempo de Desligamento Automático sem Celular:</label>
-              <select id="cfg-watchdog">
-                <option value="5000">5 segundos (Mais rígido)</option>
-                <option value="8000" selected>8 segundos (Recomendado)</option>
-                <option value="15000">15 segundos</option>
-              </select>
-            </div>
-          </fieldset>
-
-          <!-- Botões do Gerador -->
-          <div class="generator-actions">
-            <button type="button" id="btn-generate-code" class="btn-primary-generate">
-              ⚡ Gerar Código Pronto para Arduino IDE
-            </button>
-            <button type="button" id="btn-copy-code" class="btn-secondary-copy">
-              📋 Copiar Código
-            </button>
-          </div>
-        </form>
+        <div class="generator-actions">
+          <button type="button" id="btn-copy-code" class="btn-primary-generate">
+            📋 COPIAR CÓDIGO COMPLETO (1 CLIQUE)
+          </button>
+          <span id="copy-status" class="copy-status"></span>
+        </div>
 
         <!-- Caixa com o Código Gerado Pronto para Copiar e Colar -->
         <div class="code-output-container">
-          <div class="code-output-header">
-            <span>Sketch Completo para Arduino IDE / ESP32 (Tudo em 1 arquivo)</span>
-            <span id="copy-status" class="copy-status"></span>
-          </div>
           <textarea id="generated-code-box" class="code-box" readonly spellcheck="false"></textarea>
           <p class="code-instructions">
-            <strong>Como usar sem erro:</strong> Abra a Arduino IDE, crie um arquivo novo, apague tudo o que estiver lá dentro, cole o código acima e clique no botão de <strong>Upload (Seta)</strong>. Pronto! O ESP32 já estará configurado conforme você escolheu nas opções acima.
+            <strong>Instruções simples:</strong><br>
+            1. Abra a Arduino IDE.<br>
+            2. Crie um arquivo novo (Ctrl + N).<br>
+            3. Apague tudo o que estiver escrito e <strong>cole o código acima</strong>.<br>
+            4. Em <em>Ferramentas ➔ Placa</em>, escolha <strong>ESP32 Dev Module</strong>.<br>
+            5. Em <em>Ferramentas ➔ Porta</em>, escolha a sua porta COM.<br>
+            6. Clique no botão de <strong>Carregar (Seta para a direita ➔)</strong>.
           </p>
         </div>
       </div>
@@ -393,13 +446,13 @@
 
     <!-- Rodapé Geral -->
     <footer class="app-footer">
-      <p>Carrossel Inteligente MAKER • Controle Integrado ESP32 (Wi-Fi & BLE)</p>
-      <small>Segurança Infantil: Todas as saídas iniciam desligadas por padrão.</small>
+      <p>Carrossel Inteligente MAKER • Versão Simplificada (Motor + ESP32)</p>
+      <small>Desenvolvido para segurança e facilidade de montagem.</small>
     </footer>
   </div>
 
-  <script src="voice.js?v=3.5"></script>
-  <script src="comm.js?v=3.5"></script>
-  <script src="app.js?v=3.5"></script>
+  <script src="voice.js?v=4.0"></script>
+  <script src="comm.js?v=4.0"></script>
+  <script src="app.js?v=4.0"></script>
 </body>
 </html>
