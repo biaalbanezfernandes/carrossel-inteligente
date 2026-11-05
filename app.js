@@ -417,7 +417,7 @@ void broadcastState() {
       txtEsp.textContent = 'Online';
       dotWifi.className = 'status-dot dot-online';
       txtWifi.textContent = 'Ativo';
-      connFeedback.textContent = `Conectado via Wi-Fi ao ESP32 (${inputIp.value}).`;
+      connFeedback.textContent = comm.mqttClient ? 'Conectado pela nuvem (funciona por 5G).' : `Conectado via Wi-Fi ao ESP32 (${inputIp.value}).`;
     } else if (channel === 'ble') {
       dotEsp.className = 'status-dot dot-online';
       txtEsp.textContent = 'Online';
@@ -467,7 +467,16 @@ void broadcastState() {
 
     // 3. Notifica ouvintes e despacha via Wi-Fi/BLE se conectado
     comm.notifyState();
-    comm.sendMotor(turnOn, targetPwm);
+    comm.sendMotor(turnOn, targetPwm).then((ok) => {
+      if (!ok) {
+        // Não enviou: volta a tela para o estado anterior (não finge que funcionou)
+        comm.hardwareState.power = !turnOn;
+        comm.hardwareState.motor = !turnOn;
+        comm.hardwareState.motorSpeed = !turnOn ? targetPwm : 0;
+        comm.notifyState();
+        appendLog('Comando não enviado: ESP32 sem conexão.', 'error');
+      }
+    });
   }
 
   // Exportação global direta para ser acionada instantaneamente pelo voice.js
@@ -509,8 +518,14 @@ void broadcastState() {
   // Conexão Wi-Fi
   btnConnectWifi.addEventListener('click', async () => {
     const ip = inputIp.value.trim() || '192.168.4.1';
-    connFeedback.textContent = `Conectando Wi-Fi em ${ip}...`;
-    await comm.connectWifi(ip);
+    // Em página HTTPS o navegador bloqueia ws:// para IP local: usa a nuvem (vale também para 5G)
+    if (location.protocol === 'https:') {
+      connFeedback.textContent = 'Conectando pela nuvem...';
+      await comm.connectCloud();
+    } else {
+      connFeedback.textContent = `Conectando Wi-Fi em ${ip}...`;
+      await comm.connectWifi(ip);
+    }
   });
 
   // Conexão Bluetooth BLE
@@ -562,4 +577,7 @@ void broadcastState() {
 
   appendLog('Painel Carrossel MAKER (Motor Simples) pronto!', 'info');
   appendLog('Segurança: Motor inicia desligado por padrão.', 'info');
+
+  // Conecta sozinho na nuvem ao abrir o site (celular em 5G ou Wi-Fi)
+  comm.connectCloud();
 });

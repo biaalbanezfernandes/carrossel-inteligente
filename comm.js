@@ -18,9 +18,25 @@ const BLE_CONFIG = {
   CHAR_STATE_UUID: 'beb5483e-36e1-4688-b7f5-ea07361b26a9'  // Notify / Read
 };
 
+// Configuração da nuvem (broker MQTT com WebSocket seguro) - permite controlar por 5G.
+// Preencha HOST, USER e PASS com os dados do seu cluster (ex.: HiveMQ Cloud).
+// Use uma credencial só para o site, diferente da usada no ESP32.
+const CLOUD_CONFIG = {
+  HOST: 'SEU-CLUSTER.s1.eu.hivemq.cloud',
+  PORT: 8884,
+  PATH: '/mqtt',
+  USER: 'SEU_USUARIO_SITE',
+  PASS: 'SUA_SENHA_SITE',
+  TOPIC_CMD: 'carrossel/maker/cmd',
+  TOPIC_STATE: 'carrossel/maker/state',
+  LIB_URL: 'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js',
+  PING_MS: 3000,        // batimento enviado ao ESP32 (failsafe: sem batimento por 10s = motor para)
+  CONFIRM_MS: 4000      // tempo para o ESP32 confirmar um comando
+};
+
 class CarouselCommManager {
   constructor() {
-    this.activeChannel = 'none'; // 'wifi' | 'ble' | 'demo' | 'none'
+    this.activeChannel = 'none'; // 'wifi' (inclui nuvem MQTT) | 'ble' | 'demo' | 'none'
     this.isDemoMode = false;
 
     // Estado real sincronizado com o ESP32
@@ -45,6 +61,11 @@ class CarouselCommManager {
     this.wsPort = 81;
     this.reconnectTimer = null;
     this.pingInterval = null;
+
+    // Referências Nuvem (MQTT)
+    this.mqttClient = null;
+    this.cloudPingTimer = null;
+    this.confirmTimer = null;
 
     // Referências BLE
     this.bleDevice = null;
@@ -142,6 +163,16 @@ class CarouselCommManager {
       return true;
     }
 
+    if (this.activeChannel === 'wifi' && this.mqttClient) {
+      if (!this.mqttClient.connected) {
+        this.log('Sem conexão com a nuvem. Comando NÃO enviado.', 'error');
+        return false;
+      }
+      this.mqttClient.publish(CLOUD_CONFIG.TOPIC_CMD, JSON.stringify(payload), { qos: 0 });
+      if (payload.cmd === 'MOTOR' || payload.cmd === 'POWER') this.waitForConfirm();
+      return true;
+    }
+
     if (this.activeChannel === 'wifi' && this.ws && this.ws.readyState === WebSocket.OPEN) {
       try {
         this.ws.send(JSON.stringify(payload));
@@ -164,13 +195,9 @@ class CarouselCommManager {
       }
     }
 
-    // Se nenhum hardware estiver pareado no momento (ex: teste na web/Vercel),
-    // aciona a simulação interativa automaticamente para responder ao usuário
-    this.isDemoMode = true;
-    this.activeChannel = 'demo';
-    this.notifyStatus();
-    this.simulateDemoCommand(payload);
-    return true;
+    // Sem conexão real: não finge que enviou. O modo demo só é usado se o usuário ativar.
+    this.log('ESP32 não conectado. Comando NÃO enviado (use Reconectar ou o Modo Demo).', 'error');
+    return false;
   }
 
   // ========================================================================
@@ -227,6 +254,102 @@ class CarouselCommManager {
         resolve(false);
       }
     });
+  }
+
+  // ========================================================================
+  // IMPLEMENTAÇÃO NUVEM (MQTT sobre WebSocket seguro) - funciona por 5G
+  // ========================================================================
+
+  loadMqttLib() {
+    if (window.mqtt) return Promise.resolve(true);
+    return new Promise((resolve) => {
+      const s = document.createElement('script');
+      s.src = CLOUD_CONFIG.LIB_URL;
+      s.onload = () => resolve(!!window.mqtt);
+      s.onerror = () => resolve(false);
+      document.head.appendChild(s);
+    });
+  }
+
+  async connectCloud() {
+    if (CLOUD_CONFIG.HOST.startsWith('SEU-')) {
+      this.log('Nuvem não configurada: edite CLOUD_CONFIG no início do comm.js.', 'error');
+      return false;
+    }
+    this.disconnectAll();
+    this.log('Conectando à nuvem (MQTT)...', 'info');
+
+    if (!(await this.loadMqttLib())) {
+      this.log('Não foi possível carregar a biblioteca MQTT. Verifique a internet.', 'error');
+      return false;
+    }
+
+    return new Promise((resolve) => {
+      const url = `wss://${CLOUD_CONFIG.HOST}:${CLOUD_CONFIG.PORT}${CLOUD_CONFIG.PATH}`;
+      const client = window.mqtt.connect(url, {
+        username: CLOUD_CONFIG.USER,
+        password: CLOUD_CONFIG.PASS,
+        clientId: 'site_' + Math.random().toString(16).slice(2, 10),
+        clean: true,
+        reconnectPeriod: 3000,
+        connectTimeout: 8000
+      });
+      this.mqttClient = client;
+      let settled = false;
+
+      client.on('connect', () => {
+        client.subscribe(CLOUD_CONFIG.TOPIC_STATE, { qos: 0 });
+        this.activeChannel = 'wifi'; // reaproveita o indicador "Wi-Fi" da interface
+        this.isDemoMode = false;
+        this.log('Conectado à nuvem. Aguardando resposta do ESP32...', 'success');
+        this.notifyStatus();
+        this.startCloudPing();
+        this.requestStateSync();
+        if (!settled) { settled = true; resolve(true); }
+      });
+
+      client.on('message', (topic, message) => {
+        this.handleIncomingPayload(message.toString());
+      });
+
+      client.on('close', () => {
+        if (this.mqttClient === client && this.activeChannel === 'wifi') {
+          this.log('Conexão com a nuvem perdida. Tentando reconectar...', 'warn');
+          this.activeChannel = 'none';
+          this.stopCloudPing();
+          this.notifyStatus();
+        }
+      });
+
+      client.on('error', (err) => {
+        this.log(`Erro MQTT: ${err.message}`, 'error');
+        if (/not authorized|bad user/i.test(err.message)) client.end(true);
+        if (!settled) { settled = true; resolve(false); }
+      });
+    });
+  }
+
+  // Batimento: o ESP32 para o motor se ficar 10s sem receber nada do site
+  startCloudPing() {
+    this.stopCloudPing();
+    this.cloudPingTimer = setInterval(() => {
+      if (this.mqttClient && this.mqttClient.connected) {
+        this.mqttClient.publish(CLOUD_CONFIG.TOPIC_CMD, JSON.stringify({ cmd: 'PING' }), { qos: 0 });
+      }
+    }, CLOUD_CONFIG.PING_MS);
+  }
+
+  stopCloudPing() {
+    if (this.cloudPingTimer) { clearInterval(this.cloudPingTimer); this.cloudPingTimer = null; }
+  }
+
+  // Avisa se o ESP32 não confirmar o comando (a confirmação é a telemetria de volta)
+  waitForConfirm() {
+    if (this.confirmTimer) clearTimeout(this.confirmTimer);
+    this.confirmTimer = setTimeout(() => {
+      this.confirmTimer = null;
+      this.log('O ESP32 não confirmou o comando. Verifique se ele está ligado e online.', 'error');
+    }, CLOUD_CONFIG.CONFIRM_MS);
   }
 
   // ========================================================================
@@ -302,6 +425,11 @@ class CarouselCommManager {
       if (data.type === 'state' || data.motor !== undefined) {
         const payload = data.payload || data;
 
+        if (this.confirmTimer) { clearTimeout(this.confirmTimer); this.confirmTimer = null; }
+        if (payload.online === false) {
+          this.log('ESP32 está OFFLINE (sem conexão com a nuvem).', 'warn');
+        }
+
         this.hardwareState.power = !!payload.power;
         this.hardwareState.motor = !!payload.motor;
         this.hardwareState.audio = !!payload.audio;
@@ -372,6 +500,13 @@ class CarouselCommManager {
   // ========================================================================
 
   disconnectAll() {
+    this.stopCloudPing();
+    if (this.confirmTimer) { clearTimeout(this.confirmTimer); this.confirmTimer = null; }
+    if (this.mqttClient) {
+      const old = this.mqttClient;
+      this.mqttClient = null;
+      try { old.end(true); } catch (e) {}
+    }
     if (this.ws) {
       try { this.ws.close(); } catch (e) {}
       this.ws = null;
