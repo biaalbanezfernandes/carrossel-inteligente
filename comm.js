@@ -174,27 +174,8 @@ class CarouselCommManager {
       if (!this.cmdChar || this.activeChannel !== 'ble') return false;
       const encoder = new TextEncoder();
       const data = encoder.encode(jsonString);
-
-      // Tenta writeValueWithResponse primeiro (negocia pacotes maiores com segurança)
-      // e faz fallback para writeValueWithoutResponse / writeValue
-      if (typeof this.cmdChar.writeValueWithResponse === 'function') {
-        try {
-          await this.cmdChar.writeValueWithResponse(data);
-          return true;
-        } catch (e) {
-          if (typeof this.cmdChar.writeValueWithoutResponse === 'function') {
-            await this.cmdChar.writeValueWithoutResponse(data);
-            return true;
-          }
-          throw e;
-        }
-      } else if (typeof this.cmdChar.writeValueWithoutResponse === 'function') {
-        await this.cmdChar.writeValueWithoutResponse(data);
-        return true;
-      } else {
-        await this.cmdChar.writeValue(data);
-        return true;
-      }
+      await this.cmdChar.writeValue(data);
+      return true;
     };
 
     const nextPromise = this.bleWriteChain.then(runWrite, runWrite);
